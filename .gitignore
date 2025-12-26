@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# MLflow
+Assignment/mlruns/
+Assignment/mlflow.db
+Assignment/*.db
+
+# Model artifacts and outputs (in Assignment folder only)
+Assignment/artifacts/
+Assignment/*.pkl
+Assignment/*.joblib
+Assignment/*.h5
+Assignment/*.onnx
+
+# Generated plots and results (in Assignment folder only)
+Assignment/*.png
+Assignment/*.jpg
+Assignment/*.jpeg
+Assignment/*.svg
+Assignment/cv_results_summary.csv
+Assignment/confusion_matrix_*.png
+
+# Data files (large datasets)
+Assignment/*.zip
+*.tar.gz
+*.gz
+*.rar
+
+# Downloaded data (keep only processed.cleveland.data)
+Assignment/data/*.data
+!Assignment/data/processed.cleveland.data
+Assignment/data/heart+disease.zip
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Artifacts directories
+artifacts_ci/
