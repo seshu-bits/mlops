@@ -22,10 +22,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # Install testing and linting tools
+          python -m pip install pytest flake8
+          # Install project dependencies
           if [ -f Assignment/requirements.txt ]; then
             python -m pip install -r Assignment/requirements.txt
           else
-            python -m pip install pytest flake8 mlflow pandas numpy scikit-learn matplotlib seaborn requests
+            python -m pip install mlflow pandas numpy scikit-learn matplotlib seaborn requests
           fi
 
       # --- Linting step ---
