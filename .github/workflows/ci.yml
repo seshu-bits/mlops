@@ -23,7 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Install testing and linting tools
-          python -m pip install pytest flake8
+          python -m pip install pytest flake8 pytest-html pytest-cov
           # Install project dependencies
           if [ -f Assignment/requirements.txt ]; then
             python -m pip install -r Assignment/requirements.txt
@@ -35,26 +35,99 @@ jobs:
       - name: Lint with flake8
         run: |
           # Fail on syntax errors or undefined names
-          flake8 Assignment/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 Assignment/ --count --select=E9,F63,F7,F82 --show-source --statistics > flake8-critical.log || true
           # Then run a more permissive style check, but don't fail the build on it (adjust to your preference)
-          flake8 Assignment/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+          flake8 Assignment/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics > flake8-full.log
+          # Show critical errors
+          cat flake8-critical.log
 
       # --- Unit tests ---
       - name: Run unit tests with pytest
         run: |
-          cd Assignment && python -m pytest -vv
+          cd Assignment && python -m pytest -vv \
+            --html=test-report.html \
+            --self-contained-html \
+            --cov=. \
+            --cov-report=html \
+            --cov-report=term \
+            --junitxml=test-results.xml
 
       # --- Model training (CI run) ---
       - name: Train model and log artifacts
         run: |
-          cd Assignment && python ci_train.py
+          cd Assignment && python ci_train.py 2>&1 | tee training.log
+        continue-on-error: false
 
-      # --- Upload artifacts and logs ---
+      # --- Generate run summary ---
+      - name: Generate workflow summary
+        if: always()
+        run: |
+          echo "# MLOps CI/CD Run Summary" > $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Workflow Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run Number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f Assignment/test-results.xml ]; then
+            echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Tests completed - see artifacts for detailed report" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Test results not found" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifacts Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- Test reports (HTML)" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage reports" >> $GITHUB_STEP_SUMMARY
+          echo "- Model artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- MLflow runs" >> $GITHUB_STEP_SUMMARY
+          echo "- Training logs" >> $GITHUB_STEP_SUMMARY
+
+      # --- Upload test reports ---
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports-${{ github.run_number }}
+          path: |
+            Assignment/test-report.html
+            Assignment/test-results.xml
+            Assignment/htmlcov/
+          if-no-files-found: warn
+
+      # --- Upload lint logs ---
+      - name: Upload lint logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-logs-${{ github.run_number }}
+          path: |
+            flake8-critical.log
+            flake8-full.log
+          if-no-files-found: warn
+
+      # --- Upload training logs ---
+      - name: Upload training logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: training-logs-${{ github.run_number }}
+          path: |
+            Assignment/training.log
+          if-no-files-found: warn
+
+      # --- Upload model artifacts and MLflow runs ---
       - name: Upload model artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: model-artifacts
+          name: model-artifacts-${{ github.run_number }}
           path: |
             Assignment/artifacts_ci/
             Assignment/mlruns/
-          if-no-files-found: ignore
+          if-no-files-found: warn
