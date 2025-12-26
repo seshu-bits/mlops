@@ -65,8 +65,9 @@ docker ps | grep heart-api
 
 **Option A: Using the automated test script**
 ```bash
+# Make sure the API server is running first!
 pip install requests
-python test_api.py
+python integration_tests/test_api.py
 ```
 
 **Option B: Using cURL**
@@ -197,7 +198,8 @@ curl -X POST "http://localhost:8000/predict/batch" \
 
 ### Test 1: Automated Test Script
 ```bash
-python test_api.py
+# Make sure the container is running first
+python integration_tests/test_api.py
 ```
 **Output:**
 ```

@@ -1,10 +1,23 @@
 """
-Test script for the Heart Disease Prediction API.
+Integration test script for the Heart Disease Prediction API.
 
-This script tests the API endpoints with sample data.
+⚠️ IMPORTANT: This is NOT a unit test!
+This script requires a running API server at http://localhost:8000
+
+To use this script:
+1. First, start the API server:
+   - Using Docker: docker run -d -p 8000:8000 --name heart-api heart-disease-api:latest
+   - Or locally: cd Assignment && uvicorn api_server:app --host 0.0.0.0 --port 8000
+
+2. Then run this script:
+   python integration_tests/test_api.py
+
+This script tests the API endpoints with sample data and is meant for
+manual integration testing, not automated CI/CD pipelines.
 """
 import requests
 import json
+import sys
 
 # API base URL
 BASE_URL = "http://localhost:8000"

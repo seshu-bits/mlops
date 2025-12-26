@@ -31,7 +31,7 @@ Open your browser and go to:
 Or run the test script:
 ```bash
 pip install requests
-python test_api.py
+python integration_tests/test_api.py
 ```
 
 ## 📡 API Endpoints
