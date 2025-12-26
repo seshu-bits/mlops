@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# MLflow
+mlruns/
+mlflow.db
+*.db
+
+# Generated files (keep only model artifacts)
+*.png
+*.jpg
+*.jpeg
+*.svg
+cv_results_summary.csv
+confusion_matrix_*.png
+
+# Data files
+data/
+*.zip
+
+# Tests
+tests/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Documentation
+*.pdf
+*.md
+
+# CI/CD
+.github/
+
+# Other Python files not needed in container
+MLOps_Assignment.py
+ci_train.py
+training.log
+test-*.xml
+test-*.html
+
+# Artifacts - keep only trained models
+artifacts_ci/
