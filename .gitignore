@@ -69,3 +69,6 @@ coverage.xml
 
 # Artifacts directories
 artifacts_ci/
+*.pkl
+Assignment/mlruns/
+Assignment/artifacts/
