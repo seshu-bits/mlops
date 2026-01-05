@@ -1,0 +1,208 @@
+# Default values for heart-disease-api.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Number of pod replicas
+replicaCount: 2
+
+image:
+  # Docker image repository
+  # Option 1: Use Docker Hub (replace with your username)
+  repository: heart-disease-api
+  # Option 2: Use Minikube's local Docker daemon
+  # repository: heart-disease-api
+  
+  # Image pull policy
+  # Use 'Never' when using Minikube's Docker daemon
+  # Use 'IfNotPresent' or 'Always' when pulling from Docker Hub
+  pullPolicy: Never
+  
+  # Image tag (overrides the appVersion from Chart.yaml)
+  tag: "latest"
+
+# Image pull secrets (for private registries)
+imagePullSecrets: []
+
+# Override the name of the chart
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: false
+  # fsGroup: 2000
+
+# Container security context
+securityContext:
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  runAsNonRoot: false
+  # runAsUser: 1000
+
+service:
+  # Service type: ClusterIP, NodePort, or LoadBalancer
+  type: NodePort
+  # Service port (internal cluster port)
+  port: 80
+  # Container target port (must match the container's exposed port)
+  targetPort: 8000
+  # NodePort (only used when service.type is NodePort)
+  # If not specified, Kubernetes will auto-assign a port in range 30000-32767
+  nodePort: 30080
+
+ingress:
+  # Enable ingress
+  enabled: false
+  # Ingress class name
+  className: "nginx"
+  # Ingress annotations
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  # Ingress hosts configuration
+  hosts:
+    - host: heart-disease-api.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # TLS configuration
+  tls: []
+  #  - secretName: heart-disease-api-tls
+  #    hosts:
+  #      - heart-disease-api.local
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector for pod assignment
+nodeSelector: {}
+
+# Tolerations for pod assignment
+tolerations: []
+
+# Affinity for pod assignment
+affinity: {}
+
+# Liveness probe configuration
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# Readiness probe configuration
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+# Startup probe configuration (for slow-starting containers)
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 30
+
+# Environment variables
+env: []
+  # - name: LOG_LEVEL
+  #   value: "INFO"
+  # - name: MODEL_PATH
+  #   value: "/app/artifacts/logistic_regression.pkl"
+
+# ConfigMap data
+configMap:
+  enabled: false
+  data: {}
+    # app.conf: |
+    #   key=value
+
+# Secret data (base64 encoded)
+secrets:
+  enabled: false
+  data: {}
+    # API_KEY: "base64encodedvalue"
+
+# Persistent volume claim
+persistence:
+  enabled: false
+  # Storage class name
+  storageClass: ""
+  # Access mode
+  accessMode: ReadWriteOnce
+  # Storage size
+  size: 1Gi
+  # Mount path in container
+  mountPath: /data
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# Network policy
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+      - podSelector: {}
+  egress:
+    - to:
+      - podSelector: {}
+
+# Service monitor for Prometheus (requires prometheus-operator)
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  path: /metrics
