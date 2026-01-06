@@ -42,9 +42,12 @@ jobs:
           cat flake8-critical.log
 
       # --- Unit tests ---
+      # Note: Only runs tests in tests/ directory
+      # Integration tests (integration_tests/) require a running API server
+      # and are excluded from CI/CD. Run them manually when needed.
       - name: Run unit tests with pytest
         run: |
-          cd Assignment && python -m pytest -vv \
+          cd Assignment && python -m pytest tests/ -vv \
             --html=test-report.html \
             --self-contained-html \
             --cov=. \
