@@ -57,8 +57,10 @@ securityContext:
   # runAsUser: 1000
 
 service:
-  # Service type: ClusterIP, NodePort, or LoadBalancer
-  type: NodePort
+  # Service type: ClusterIP for use with Ingress, NodePort for direct access
+  # Use ClusterIP when ingress.enabled=true for production
+  # Use NodePort for development/direct access
+  type: ClusterIP
   # Service port (internal cluster port)
   port: 80
   # Container target port (must match the container's exposed port)
@@ -75,20 +77,30 @@ ingress:
   # Ingress class name
   className: "nginx"
   # Ingress annotations
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
+  annotations:
+    # Enable if you want to use cert-manager for TLS
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Force redirect to HTTPS (uncomment when TLS is configured)
+    # nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Increase timeout for long-running predictions
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
   # Ingress hosts configuration
   hosts:
-    - host: heart-disease-api.local
+    - host: ""  # Empty host accepts all hostnames (use server IP)
       paths:
         - path: /
           pathType: Prefix
+    # Add your domain when available
+    # - host: heart-disease-api.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
   # TLS configuration
   tls: []
   #  - secretName: heart-disease-api-tls
   #    hosts:
-  #      - heart-disease-api.local
+  #      - heart-disease-api.example.com
 
 # Resource limits and requests
 resources:
