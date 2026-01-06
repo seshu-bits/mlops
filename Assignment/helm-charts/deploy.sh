@@ -76,10 +76,69 @@ build_docker_image() {
         exit 1
     fi
 
-    # Build the image
+    # Detect if we're on Alma Linux or similar RHEL-based system
+    if [ -f /etc/almalinux-release ] || [ -f /etc/redhat-release ]; then
+        print_warning "Detected RHEL-based system (Alma Linux/RHEL/CentOS)"
+        
+        # Check if we can use the Alma Linux native Dockerfile
+        if [ -f "../Dockerfile.almalinux" ]; then
+            echo "Using Alma Linux optimized Dockerfile..."
+            cd ..
+            
+            # Try to build with Alma Linux Dockerfile directly
+            if docker build -t $IMAGE_NAME -f Dockerfile.almalinux . 2>&1 | tee /tmp/docker-build.log; then
+                print_success "Docker image built successfully using Alma Linux Dockerfile"
+                cd helm-charts
+                return 0
+            else
+                print_warning "Alma Linux Dockerfile failed, trying fallback methods..."
+            fi
+            cd helm-charts
+        fi
+    fi
+
+    # Build the base image first (if not already present)
+    echo "Checking for local Python base image..."
+    if ! docker images | grep -q "local-python-base.*3.11"; then
+        echo "Base image not found. Building local-python-base:3.11..."
+        cd ..
+        if [ -f "Dockerfile.base" ]; then
+            echo "Attempting to build base image (this may take a while on first run)..."
+            if docker build -t local-python-base:3.11 -f Dockerfile.base . 2>&1 | tee /tmp/base-build.log; then
+                print_success "Base image built successfully"
+            else
+                print_error "Failed to build base image"
+                echo "Error log saved to /tmp/base-build.log"
+                print_warning "You may need to manually load a Python base image"
+                print_warning "See Dockerfile.base and Dockerfile.almalinux for alternatives"
+                exit 1
+            fi
+        else
+            print_error "Dockerfile.base not found"
+            exit 1
+        fi
+        cd helm-charts
+    else
+        print_success "Base image already exists"
+    fi
+
+    # Build the application image
     echo "Building Docker image: $IMAGE_NAME"
     cd ..
-    docker build -t $IMAGE_NAME .
+    if docker build -t $IMAGE_NAME . 2>&1 | tee /tmp/docker-build.log; then
+        print_success "Docker image built successfully"
+    else
+        print_error "Failed to build Docker image"
+        echo "Error log saved to /tmp/docker-build.log"
+        echo ""
+        print_warning "Troubleshooting tips for Alma Linux 8:"
+        echo "  1. Check if base images are available: docker images"
+        echo "  2. Try building with Alma-specific Dockerfile:"
+        echo "     docker build -t $IMAGE_NAME -f Dockerfile.almalinux ."
+        echo "  3. Check network connectivity: curl -I https://registry.access.redhat.com"
+        echo "  4. For completely offline setup, pre-load required images"
+        exit 1
+    fi
     cd helm-charts
 
     # Verify image was built

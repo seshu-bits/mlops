@@ -1,0 +1,26 @@
+# Minimal Python base for offline/air-gapped environments on Alma Linux 8
+# This uses Red Hat UBI (Universal Base Image) which is compatible with RHEL/Alma Linux
+# UBI images are freely redistributable and often pre-cached in enterprise environments
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.9
+
+# Install Python 3.11 and essential build tools
+RUN microdnf install -y \
+    python3.11 \
+    python3.11-pip \
+    python3.11-devel \
+    gcc \
+    gcc-c++ \
+    && microdnf clean all \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Upgrade pip
+RUN python3.11 -m pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Set Python to unbuffered mode
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app

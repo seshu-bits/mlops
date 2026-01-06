@@ -1,0 +1,46 @@
+# Dockerfile optimized for Alma Linux 8 environments
+# Uses almalinux:8 as base which should be available locally or easily cached
+FROM almalinux:8
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install Python 3.11 and build dependencies
+RUN dnf install -y \
+    python3.11 \
+    python3.11-pip \
+    python3.11-devel \
+    gcc \
+    gcc-c++ \
+    && dnf clean all \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Upgrade pip, setuptools, and wheel
+RUN python3.11 -m pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN python3.11 -m pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY api_server.py .
+COPY artifacts/ ./artifacts/
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3.11 -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+
+# Run the application
+CMD ["python3.11", "-m", "uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000"]

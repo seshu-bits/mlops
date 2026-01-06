@@ -1,11 +1,9 @@
-# Use an unpinned Python base image
-# NOTE: This avoids a hard dependency on the specific python:3.11-slim tag,
-# which can cause issues in restricted or air‑gapped environments that
-# cannot reach Docker Hub to resolve that exact image.
-# If you need full control, you can retag a locally available base image
-# (for example built inside Minikube) as "python:local" and use that name
-# here so that no external registry lookup is required.
-FROM python:3.11
+# Use local Python base image (no external registry dependency)
+# This base is built from Dockerfile.base using Red Hat UBI or Alma Linux base
+# For Alma Linux 8: use Dockerfile.almalinux directly instead
+# Build the base first: eval $(minikube docker-env) && docker build -t local-python-base:3.11 -f Dockerfile.base .
+# OR use the Alma-native version: docker build -t heart-disease-api:latest -f Dockerfile.almalinux .
+FROM local-python-base:3.11
 
 # Set working directory
 WORKDIR /app
