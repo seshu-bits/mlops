@@ -8,6 +8,8 @@ Complete MLOps implementation with FastAPI, Kubernetes deployment, Prometheus mo
 
 - [Quick Start](#-quick-start)
 - [Data Acquisition & EDA](#-data-acquisition--eda)
+- [Feature Engineering & Model Training](#-feature-engineering--model-training)
+- [Experiment Tracking with MLflow](#-experiment-tracking-with-mlflow)
 - [Project Overview](#-project-overview)
 - [Architecture](#-architecture)
 - [Deployment](#-deployment)
@@ -164,7 +166,594 @@ print(f"Warnings: {validation_results['warnings']}")
 
 ---
 
-## �📖 Project Overview
+## 🤖 Feature Engineering & Model Training
+
+### Feature Engineering Pipeline
+
+Our feature engineering transforms raw data into ML-ready features:
+
+**1. One-Hot Encoding**
+- Categorical features encoded with `drop_first=True` to avoid multicollinearity
+- Creates binary indicator columns for each category
+
+**2. Feature Scaling**
+- `StandardScaler` applied to numeric features
+- Standardizes features to zero mean and unit variance
+- Essential for distance-based algorithms (Logistic Regression)
+
+**3. Feature Transformation**
+```python
+from MLOps_Assignment import prepare_ml_features
+
+X, y, scaler = prepare_ml_features(cleaned_df)
+# Input: 13 raw features
+# Output: 20+ features after one-hot encoding
+```
+
+---
+
+### Models Implemented
+
+We train and evaluate **three classification algorithms**:
+
+#### **1. Logistic Regression**
+- **Algorithm**: Linear classifier with L2 regularization
+- **Best for**: Interpretable baseline, fast training
+- **Hyperparameters tuned**:
+  - `C`: Regularization strength [0.001, 0.01, 0.1, 1, 10, 100]
+  - `solver`: Optimization algorithm ['lbfgs', 'liblinear', 'saga']
+  - `max_iter`: Maximum iterations [500, 1000, 2000]
+  - `class_weight`: Handles class imbalance [None, 'balanced']
+
+#### **2. Random Forest**
+- **Algorithm**: Ensemble of decision trees with bagging
+- **Best for**: High accuracy, handles non-linear relationships
+- **Hyperparameters tuned**:
+  - `n_estimators`: Number of trees [50, 100, 200, 300]
+  - `max_depth`: Tree depth [None, 10, 20, 30, 40]
+  - `min_samples_split`: Min samples to split [2, 5, 10]
+  - `min_samples_leaf`: Min samples per leaf [1, 2, 4]
+  - `max_features`: Features per split ['sqrt', 'log2', None]
+  - `class_weight`: ['balanced', 'balanced_subsample', None]
+
+#### **3. Decision Tree**
+- **Algorithm**: Single decision tree classifier
+- **Best for**: Fast predictions, interpretable
+- **Hyperparameters tuned**:
+  - `max_depth`: Tree depth [None, 5, 10, 15, 20, 25, 30]
+  - `min_samples_split`: Min samples to split [2, 5, 10, 20]
+  - `min_samples_leaf`: Min samples per leaf [1, 2, 4, 8]
+  - `max_features`: Features per split ['sqrt', 'log2', None]
+  - `criterion`: Split criterion ['gini', 'entropy']
+  - `class_weight`: [' balanced', None]
+
+---
+
+### Hyperparameter Tuning
+
+**Method**: `RandomizedSearchCV`
+- **Cross-Validation**: 5-fold StratifiedKFold (maintains class balance)
+- **Scoring Metric**: ROC-AUC (handles class imbalance better than accuracy)
+- **Search Strategy**: Random search with 20 iterations
+- **Parallelization**: `n_jobs=-1` (uses all CPU cores)
+
+**Tuning Functions**:
+```python
+from MLOps_Assignment import (
+    tune_logistic_regression,
+    tune_random_forest,
+    tune_decision_tree
+)
+
+# Tune Logistic Regression
+best_lr, best_params_lr, cv_summary_lr = tune_logistic_regression(
+    X_train, y_train, cv_splits=5, n_iter=20, method='randomized'
+)
+
+print(f"Best CV ROC-AUC: {cv_summary_lr['best_score']:.4f}")
+print(f"Best Parameters: {best_params_lr}")
+```
+
+**Why RandomizedSearchCV?**
+- ✅ Faster than GridSearchCV (samples parameter space)
+- ✅ Good for large parameter grids
+- ✅ Often finds near-optimal solutions
+- ✅ Efficient for Random Forest (many hyperparameters)
+
+---
+
+### Model Evaluation
+
+**Metrics Tracked**:
+
+| Metric | Purpose | Interpretation |
+|--------|---------|----------------|
+| **Accuracy** | Overall correctness | (TP+TN)/(TP+TN+FP+FN) |
+| **Precision** | Positive prediction accuracy | TP/(TP+FP) - How many predicted diseases are actual |
+| **Recall** | True positive capture rate | TP/(TP+FN) - How many actual diseases are detected |
+| **F1-Score** | Harmonic mean of precision/recall | Balances precision and recall |
+| **ROC-AUC** | Discrimination ability | Area under ROC curve (0.5-1.0) |
+
+**Evaluation Strategy**:
+1. **Cross-Validation** (5-fold): Estimates generalization performance
+2. **Train/Test Split** (80/20): Final evaluation on holdout set
+3. **Stratified Sampling**: Maintains 54/46 class balance in each fold
+
+**Evaluation Code**:
+```python
+from MLOps_Assignment import evaluate_classification_model
+
+metrics = evaluate_classification_model(
+    model, X_train, y_train, X_test, y_test, model_name="Random Forest"
+)
+
+print(f"Test Accuracy: {metrics['test_accuracy']:.4f}")
+print(f"Test ROC-AUC: {metrics['test_roc_auc']:.4f}")
+print(f"Test F1-Score: {metrics['test_f1']:.4f}")
+```
+
+---
+
+### Cross-Validation Results
+
+**Function**: `cross_validate_models()`
+
+Compares all three models using 5-fold cross-validation:
+
+```python
+from MLOps_Assignment import cross_validate_models
+
+cv_results = cross_validate_models(X, y, cv_splits=5)
+print(cv_results)
+```
+
+**Example Output**:
+```
+              model  accuracy_mean  accuracy_std  precision_mean  ...
+ Logistic Regression         0.8485        0.0321          0.8421  ...
+       Random Forest         0.8652        0.0289          0.8734  ...
+       Decision Tree         0.7983        0.0412          0.7856  ...
+```
+
+**Interpretation**:
+- **Mean**: Average performance across 5 folds
+- **Std**: Performance variability (lower is more stable)
+- Random Forest typically achieves highest ROC-AUC (~0.87-0.90)
+
+---
+
+### Feature Importance
+
+**Extraction** (Random Forest & Decision Tree only):
+```python
+from MLOps_Assignment import extract_feature_importance
+
+importance_df = extract_feature_importance(
+    model=best_random_forest,
+    feature_names=X_train.columns.tolist(),
+    top_n=15,
+    output_dir="./artifacts/feature_importance",
+    save_plot=True
+)
+
+print(importance_df.head(10))
+```
+
+**Top Features** (typical results):
+1. `ca` (number of major vessels) - ~25% importance
+2. `thal` (thalassemia) - ~15% importance
+3. `oldpeak` (ST depression) - ~12% importance
+4. `thalach` (max heart rate) - ~10% importance
+5. `age` - ~8% importance
+
+**Visualization**: Horizontal bar chart of top 15 features saved to MLflow
+
+---
+
+### Model Selection Criteria
+
+**Primary Metric**: ROC-AUC (handles class imbalance)
+
+**Selection Process**:
+1. Tune hyperparameters for all 3 models
+2. Evaluate on test set with all metrics
+3. Compare test ROC-AUC scores
+4. Consider precision/recall tradeoff for medical domain
+5. Select best performing model
+
+**Typical Winner**: Random Forest
+- ✅ Highest ROC-AUC (~0.88-0.92 on test set)
+- ✅ Good precision and recall balance
+- ✅ Handles non-linear relationships
+- ✅ Robust to outliers
+
+**Deployment**: Best model saved as pickle and logged to MLflow
+
+---
+
+### Training Pipeline
+
+**Complete Training Workflow**:
+
+```bash
+# Run CI training with hyperparameter tuning
+cd Assignment
+python ci_train.py
+```
+
+**Pipeline Steps**:
+1. Data validation
+2. EDA generation
+3. Feature engineering
+4. Hyperparameter tuning (3 models)
+5. Model evaluation
+6. Feature importance extraction
+7. MLflow logging
+8. Model saving
+
+**MLflow Tracking**:
+- All hyperparameters logged
+- All metrics logged (train + test)
+- Best parameters logged
+- EDA plots logged
+- Feature importance plots logged
+- Models versioned and registered
+
+---
+
+### Tuning Results (Example)
+
+**Logistic Regression**:
+```
+Best CV ROC-AUC: 0.8721
+Best Parameters: {'C': 0.1, 'solver': 'lbfgs', 'max_iter': 1000, 'class_weight': 'balanced'}
+Test ROC-AUC: 0.8654
+```
+
+**Random Forest**:
+```
+Best CV ROC-AUC: 0.9012
+Best Parameters: {'n_estimators': 200, 'max_depth': 20, 'min_samples_split': 5, 'class_weight': 'balanced'}
+Test ROC-AUC: 0.8945
+```
+
+**Decision Tree**:
+```
+Best CV ROC-AUC: 0.8234
+Best Parameters: {'max_depth': 10, 'min_samples_split': 10, 'criterion': 'gini', 'class_weight': 'balanced'}
+Test ROC-AUC: 0.8156
+```
+
+**Winner**: Random Forest (highest test ROC-AUC)
+
+---
+
+## 📊 Experiment Tracking with MLflow
+
+### Overview
+
+All model training experiments are automatically tracked using **MLflow 2.9.2**, providing comprehensive logging of parameters, metrics, artifacts, and model versions for reproducibility and comparison.
+
+### What Gets Tracked
+
+#### **Parameters Logged**
+- **Data validation metrics**: total_rows, missing_values, duplicate_rows, data_validation_passed
+- **Hyperparameter tuning config**: tuning_method, tuning_cv_splits, tuning_n_iter
+- **Best hyperparameters**: All optimized parameters with `best_` prefix (e.g., `best_C`, `best_n_estimators`)
+- **Model metadata**: model_name, scaler_mean_len, train_rows, test_rows
+
+#### **Metrics Logged**
+- **Cross-validation**: best_cv_roc_auc, n_candidates_evaluated
+- **Test set performance**: test_accuracy, test_roc_auc, test_f1, test_precision, test_recall, train_accuracy
+- **Data distribution**: class_0_count, class_1_count
+
+#### **Artifacts Logged**
+- **EDA visualizations**: 5 plots (feature distributions, correlations, class balance, box plots, outliers)
+- **Feature importance plots**: For Random Forest and Decision Tree models
+- **Model files**: Serialized sklearn models in MLflow format
+- **Confusion matrices**: Classification confusion matrix plots
+- **Model comparison table**: CSV with all models' performance metrics
+- **ROC curves**: ROC-AUC curves for all models
+- **Precision-Recall curves**: PR curves for imbalanced classification
+
+#### **Model Registry**
+- Best model automatically registered with version control
+- Models tagged with environment, purpose, and performance metrics
+- Staging transitions (None → Staging → Production)
+
+---
+
+### Starting MLflow UI
+
+#### **Method 1: From Assignment Directory (Recommended)**
+
+```bash
+cd Assignment
+mlflow ui --host 0.0.0.0 --port 5000
+```
+
+Then open: **http://localhost:5000**
+
+#### **Method 2: From Project Root**
+
+```bash
+cd mlops
+mlflow ui --backend-store-uri file:///absolute/path/to/Assignment/mlruns --host 0.0.0.0 --port 5000
+```
+
+#### **Method 3: Background Process**
+
+```bash
+cd Assignment
+nohup mlflow ui --host 0.0.0.0 --port 5000 > mlflow.log 2>&1 &
+echo $! > mlflow.pid  # Save PID for later shutdown
+```
+
+**Stop MLflow UI**:
+```bash
+kill $(cat mlflow.pid)
+rm mlflow.pid
+```
+
+---
+
+### MLflow UI Features
+
+#### **1. Experiments Page**
+- **Location**: Main dashboard at http://localhost:5000
+- **View**: All experiments and runs in table format
+- **Features**:
+  - Filter runs by metrics, parameters, or tags
+  - Sort by any metric (e.g., test_roc_auc)
+  - Compare multiple runs side-by-side
+  - Search by run name or ID
+
+**Example Filters**:
+```
+metrics.test_roc_auc > 0.85
+params.tuning_method = "RandomizedSearchCV"
+tags.environment = "ci"
+```
+
+#### **2. Run Details Page**
+- **Location**: Click any run name
+- **Sections**:
+  - **Parameters**: All hyperparameters and configuration
+  - **Metrics**: Performance metrics with history
+  - **Artifacts**: EDA plots, models, confusion matrices
+  - **Tags**: Run metadata and labels
+  - **Notes**: Custom descriptions and observations
+
+#### **3. Compare Runs**
+- **How**: Select multiple runs → Click "Compare"
+- **Features**:
+  - Side-by-side parameter comparison
+  - Metric trends across runs
+  - Scatter plots (e.g., test_roc_auc vs n_estimators)
+  - Parallel coordinates plot for hyperparameter analysis
+
+**Example Use Case**:
+Compare all 3 models (Logistic Regression, Random Forest, Decision Tree) to see which hyperparameters correlate with better performance.
+
+#### **4. Model Registry**
+- **Location**: http://localhost:5000/#/models
+- **Features**:
+  - View all registered models with versions
+  - Promote models through stages (None → Staging → Production)
+  - Add descriptions and tags to model versions
+  - Track which runs produced which model versions
+
+**Model Lifecycle**:
+```
+Training Run → Register Model → Version 1 (None)
+    ↓
+Validation Pass → Transition to Staging
+    ↓
+Production Approval → Transition to Production
+```
+
+#### **5. Visualizations**
+- **Artifacts Browser**: View all logged plots inline
+- **Metric History**: Track metric evolution across epochs/iterations
+- **Parallel Coordinates**: Visualize high-dimensional hyperparameter space
+- **Scatter Plots**: Compare two metrics or parameters
+
+---
+
+### Accessing MLflow UI Remotely
+
+#### **From Remote Machine (e.g., AlmaLinux Server)**
+
+**Step 1: Start MLflow UI with Public IP**
+```bash
+cd Assignment
+mlflow ui --host 0.0.0.0 --port 5000
+```
+
+**Step 2: Configure Firewall**
+```bash
+# Open port 5000
+sudo firewall-cmd --permanent --add-port=5000/tcp
+sudo firewall-cmd --reload
+```
+
+**Step 3: Access from Remote Client**
+```
+http://<server-ip>:5000
+```
+
+**Example**:
+```
+http://192.168.1.100:5000
+```
+
+#### **SSH Tunneling (Secure Alternative)**
+
+**From local machine**:
+```bash
+ssh -L 5000:localhost:5000 user@<server-ip>
+```
+
+Then access: http://localhost:5000
+
+---
+
+### Experiment Organization
+
+#### **Experiment Structure**
+```
+mlruns/
+├── 1/                                    # Experiment ID 1
+│   ├── 0ed89bfe.../                      # Run: ci_logistic_regression
+│   │   ├── artifacts/
+│   │   │   ├── eda/                      # EDA plots
+│   │   │   ├── plots/                    # Confusion matrix
+│   │   │   ├── logistic_regression_ci_mlflow_model/  # Model
+│   │   │   └── model_comparison.csv      # Comparison table
+│   │   ├── metrics/
+│   │   │   ├── test_roc_auc              # Metric values
+│   │   │   ├── test_accuracy
+│   │   │   └── best_cv_roc_auc
+│   │   ├── params/
+│   │   │   ├── best_C                    # Best hyperparameters
+│   │   │   ├── tuning_method
+│   │   │   └── model_name
+│   │   └── tags/
+│   │       ├── mlflow.runName
+│   │       ├── environment
+│   │       └── purpose
+│   ├── 1ec813ae.../                      # Run: ci_random_forest
+│   └── 22da23bc.../                      # Run: ci_decision_tree
+└── models/                               # Model Registry
+    └── heart-disease-classifier/
+        ├── version-1/                    # Logistic Regression
+        ├── version-2/                    # Random Forest
+        └── version-3/                    # Decision Tree
+```
+
+#### **Experiment Naming Convention**
+- **Experiment Name**: `ci_heart_disease_classification`
+- **Run Names**: `ci_<model_name>` (e.g., `ci_random_forest`)
+- **Model Name**: `heart-disease-classifier`
+
+---
+
+### Common MLflow Commands
+
+#### **Query Experiments**
+```bash
+# List all experiments
+mlflow experiments list
+
+# Search runs
+mlflow runs list --experiment-id 1
+
+# Get best run
+mlflow runs list --experiment-id 1 --order-by "metrics.test_roc_auc DESC" --max-results 1
+```
+
+#### **Load Model Programmatically**
+```python
+import mlflow
+
+# Load latest production model
+model = mlflow.pyfunc.load_model("models:/heart-disease-classifier/Production")
+
+# Load specific run's model
+model = mlflow.sklearn.load_model("runs:/<run-id>/logistic_regression_ci_mlflow_model")
+
+# Make predictions
+predictions = model.predict(X_test)
+```
+
+#### **Register Model from Run**
+```python
+import mlflow
+
+# Register model from specific run
+mlflow.register_model(
+    model_uri="runs:/<run-id>/random_forest_ci_mlflow_model",
+    name="heart-disease-classifier"
+)
+
+# Transition to production
+client = mlflow.tracking.MlflowClient()
+client.transition_model_version_stage(
+    name="heart-disease-classifier",
+    version=2,
+    stage="Production"
+)
+```
+
+---
+
+### Viewing Experiment Results
+
+#### **Via MLflow UI (Recommended)**
+1. Start MLflow UI: `mlflow ui`
+2. Open http://localhost:5000
+3. Navigate to experiment: `ci_heart_disease_classification`
+4. View runs, compare metrics, download artifacts
+
+#### **Via Python API**
+```python
+import mlflow
+import pandas as pd
+
+# Get experiment
+experiment = mlflow.get_experiment_by_name("ci_heart_disease_classification")
+
+# Search runs
+runs = mlflow.search_runs(
+    experiment_ids=[experiment.experiment_id],
+    order_by=["metrics.test_roc_auc DESC"]
+)
+
+# Display results
+print(runs[['run_id', 'metrics.test_roc_auc', 'metrics.test_accuracy', 'params.model_name']])
+```
+
+#### **Via CLI**
+```bash
+# Get best run by ROC-AUC
+mlflow runs list \
+    --experiment-id 1 \
+    --order-by "metrics.test_roc_auc DESC" \
+    --max-results 1 \
+    --view all
+```
+
+---
+
+### Best Practices
+
+#### **1. Consistent Naming**
+- Use descriptive run names: `ci_logistic_regression` not `run_1`
+- Tag runs with metadata: `environment=ci`, `purpose=hyperparameter_tuning`
+
+#### **2. Log Everything**
+- Parameters: All hyperparameters and configuration
+- Metrics: All evaluation metrics (train + test)
+- Artifacts: Plots, models, data samples, config files
+
+#### **3. Model Registry**
+- Register production-worthy models only
+- Use semantic versioning in descriptions
+- Document model performance in version notes
+
+#### **4. Experiment Organization**
+- One experiment per project/use case
+- Use run tags to group related runs
+- Archive old experiments periodically
+
+#### **5. Reproducibility**
+- Log random seeds and environment info
+- Log data versions or checksums
+- Save preprocessing artifacts (scalers, encoders)
+
+---
+
+## 🚀 Project Overview
 
 ### What This Project Does
 

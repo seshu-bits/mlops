@@ -18,7 +18,13 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
+from sklearn.model_selection import (
+    GridSearchCV,
+    RandomizedSearchCV,
+    StratifiedKFold,
+    cross_validate,
+    train_test_split,
+)
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
@@ -641,6 +647,272 @@ def cross_validate_models(
 
     results_df = pd.DataFrame(rows)
     return results_df
+
+
+# ==========================
+# Hyperparameter Tuning
+# ==========================
+
+
+def tune_logistic_regression(
+    X_train,
+    y_train,
+    cv_splits: int = 5,
+    n_iter: int = 20,
+    random_state: int = 42,
+    method: str = "randomized",
+) -> Tuple[LogisticRegression, dict, dict]:
+    """Hyperparameter tuning for Logistic Regression using RandomizedSearchCV or GridSearchCV.
+
+    Args:
+        X_train: Training features
+        y_train: Training labels
+        cv_splits: Number of cross-validation folds
+        n_iter: Number of parameter settings sampled (for RandomizedSearch)
+        random_state: Random state for reproducibility
+        method: 'randomized' or 'grid' search
+
+    Returns:
+        Tuple of (best_model, best_params, cv_results_summary)
+    """
+    param_distributions = {
+        "C": [0.001, 0.01, 0.1, 1, 10, 100],
+        "penalty": ["l2"],
+        "solver": ["lbfgs", "liblinear", "saga"],
+        "max_iter": [500, 1000, 2000],
+        "class_weight": [None, "balanced"],
+    }
+
+    base_model = LogisticRegression(random_state=random_state, n_jobs=-1)
+    cv = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=random_state)
+
+    if method == "randomized":
+        search = RandomizedSearchCV(
+            base_model,
+            param_distributions,
+            n_iter=n_iter,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+            random_state=random_state,
+            verbose=0,
+        )
+    else:  # grid
+        search = GridSearchCV(
+            base_model,
+            param_distributions,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+            verbose=0,
+        )
+
+    search.fit(X_train, y_train)
+
+    cv_results_summary = {
+        "best_score": search.best_score_,
+        "best_params": search.best_params_,
+        "n_candidates": len(search.cv_results_["params"]),
+    }
+
+    return search.best_estimator_, search.best_params_, cv_results_summary
+
+
+def tune_random_forest(
+    X_train,
+    y_train,
+    cv_splits: int = 5,
+    n_iter: int = 20,
+    random_state: int = 42,
+    method: str = "randomized",
+) -> Tuple[RandomForestClassifier, dict, dict]:
+    """Hyperparameter tuning for Random Forest using RandomizedSearchCV or GridSearchCV.
+
+    Args:
+        X_train: Training features
+        y_train: Training labels
+        cv_splits: Number of cross-validation folds
+        n_iter: Number of parameter settings sampled (for RandomizedSearch)
+        random_state: Random state for reproducibility
+        method: 'randomized' or 'grid' search
+
+    Returns:
+        Tuple of (best_model, best_params, cv_results_summary)
+    """
+    param_distributions = {
+        "n_estimators": [50, 100, 200, 300],
+        "max_depth": [None, 10, 20, 30, 40],
+        "min_samples_split": [2, 5, 10],
+        "min_samples_leaf": [1, 2, 4],
+        "max_features": ["sqrt", "log2", None],
+        "class_weight": ["balanced", "balanced_subsample", None],
+    }
+
+    base_model = RandomForestClassifier(random_state=random_state, n_jobs=-1)
+    cv = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=random_state)
+
+    if method == "randomized":
+        search = RandomizedSearchCV(
+            base_model,
+            param_distributions,
+            n_iter=n_iter,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+            random_state=random_state,
+            verbose=0,
+        )
+    else:  # grid
+        search = GridSearchCV(
+            base_model,
+            param_distributions,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+            verbose=0,
+        )
+
+    search.fit(X_train, y_train)
+
+    cv_results_summary = {
+        "best_score": search.best_score_,
+        "best_params": search.best_params_,
+        "n_candidates": len(search.cv_results_["params"]),
+    }
+
+    return search.best_estimator_, search.best_params_, cv_results_summary
+
+
+def tune_decision_tree(
+    X_train,
+    y_train,
+    cv_splits: int = 5,
+    n_iter: int = 20,
+    random_state: int = 42,
+    method: str = "randomized",
+) -> Tuple[DecisionTreeClassifier, dict, dict]:
+    """Hyperparameter tuning for Decision Tree using RandomizedSearchCV or GridSearchCV.
+
+    Args:
+        X_train: Training features
+        y_train: Training labels
+        cv_splits: Number of cross-validation folds
+        n_iter: Number of parameter settings sampled (for RandomizedSearch)
+        random_state: Random state for reproducibility
+        method: 'randomized' or 'grid' search
+
+    Returns:
+        Tuple of (best_model, best_params, cv_results_summary)
+    """
+    param_distributions = {
+        "max_depth": [None, 5, 10, 15, 20, 25, 30],
+        "min_samples_split": [2, 5, 10, 20],
+        "min_samples_leaf": [1, 2, 4, 8],
+        "max_features": ["sqrt", "log2", None],
+        "criterion": ["gini", "entropy"],
+        "class_weight": ["balanced", None],
+    }
+
+    base_model = DecisionTreeClassifier(random_state=random_state)
+    cv = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=random_state)
+
+    if method == "randomized":
+        search = RandomizedSearchCV(
+            base_model,
+            param_distributions,
+            n_iter=n_iter,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+            random_state=random_state,
+            verbose=0,
+        )
+    else:  # grid
+        search = GridSearchCV(
+            base_model,
+            param_distributions,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+            verbose=0,
+        )
+
+    search.fit(X_train, y_train)
+
+    cv_results_summary = {
+        "best_score": search.best_score_,
+        "best_params": search.best_params_,
+        "n_candidates": len(search.cv_results_["params"]),
+    }
+
+    return search.best_estimator_, search.best_params_, cv_results_summary
+
+
+def extract_feature_importance(
+    model,
+    feature_names: list,
+    top_n: int = 15,
+    output_dir: str | Path = "./artifacts/feature_importance",
+    save_plot: bool = True,
+) -> pd.DataFrame:
+    """Extract and visualize feature importance from tree-based models.
+
+    Works with Random Forest and Decision Tree models that have feature_importances_ attribute.
+
+    Args:
+        model: Trained model with feature_importances_ attribute
+        feature_names: List of feature names
+        top_n: Number of top features to display
+        output_dir: Directory to save plot
+        save_plot: Whether to save the plot
+
+    Returns:
+        DataFrame with features and importance scores
+    """
+    if not hasattr(model, "feature_importances_"):
+        print(f"Model {type(model).__name__} does not have feature_importances_ attribute")
+        return pd.DataFrame()
+
+    # Get feature importances
+    importances = model.feature_importances_
+    indices = np.argsort(importances)[::-1]
+
+    # Create DataFrame
+    importance_df = pd.DataFrame({
+        "feature": [feature_names[i] for i in indices],
+        "importance": importances[indices],
+    })
+
+    # Plot top N features
+    if save_plot:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        plt.figure(figsize=(10, 8))
+        top_features = importance_df.head(top_n)
+
+        plt.barh(range(len(top_features)), top_features["importance"], color="#3498db", edgecolor="black")
+        plt.yticks(range(len(top_features)), top_features["feature"])
+        plt.xlabel("Importance Score", fontsize=12, fontweight="bold")
+        plt.ylabel("Features", fontsize=12, fontweight="bold")
+        plt.title(
+            f"Top {top_n} Feature Importances - {type(model).__name__}",
+            fontsize=14,
+            fontweight="bold",
+            pad=20,
+        )
+        plt.gca().invert_yaxis()
+        plt.grid(axis="x", alpha=0.3)
+        plt.tight_layout()
+
+        model_name = type(model).__name__.lower().replace(" ", "_")
+        plot_path = output_dir / f"feature_importance_{model_name}.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+
+        print(f"Feature importance plot saved: {plot_path}")
+
+    return importance_df
 
 
 # ==========================
