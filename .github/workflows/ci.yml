@@ -30,6 +30,8 @@ jobs:
           else
             python -m pip install mlflow pandas numpy scikit-learn matplotlib seaborn requests
           fi
+          # Install additional dev dependencies for training
+          python -m pip install matplotlib seaborn
 
       # --- Linting step ---
       - name: Lint with flake8
