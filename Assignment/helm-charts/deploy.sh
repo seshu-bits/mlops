@@ -76,74 +76,109 @@ build_docker_image() {
         exit 1
     fi
 
-    # Detect if we're on Alma Linux or similar RHEL-based system
-    if [ -f /etc/almalinux-release ] || [ -f /etc/redhat-release ]; then
-        print_warning "Detected RHEL-based system (Alma Linux/RHEL/CentOS)"
-        
-        # Check if we can use the Alma Linux native Dockerfile
-        if [ -f "../Dockerfile.almalinux" ]; then
-            echo "Using Alma Linux optimized Dockerfile..."
-            cd ..
-            
-            # Try to build with Alma Linux Dockerfile directly
-            if docker build -t $IMAGE_NAME -f Dockerfile.almalinux . 2>&1 | tee /tmp/docker-build.log; then
-                print_success "Docker image built successfully using Alma Linux Dockerfile"
-                cd helm-charts
-                return 0
-            else
-                print_warning "Alma Linux Dockerfile failed, trying fallback methods..."
-            fi
-            cd helm-charts
+    echo "Checking available base images..."
+    AVAILABLE_IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null || echo "")
+    
+    # Strategy: Try different Dockerfiles in order of preference
+    # 1. If python:3.11-slim exists, use Dockerfile.offline
+    # 2. If almalinux:8 exists, use Dockerfile.almalinux
+    # 3. If local-python-base:3.11 exists, use main Dockerfile
+    # 4. Try to build base image from Dockerfile.base
+    # 5. Give up and provide instructions
+
+    cd ..
+    BUILD_SUCCESS=false
+    
+    # Option 1: Check for python:3.11-slim (best for offline)
+    if echo "$AVAILABLE_IMAGES" | grep -q "python:3.11-slim"; then
+        print_success "Found python:3.11-slim - using Dockerfile.offline"
+        if docker build -t $IMAGE_NAME -f Dockerfile.offline . 2>&1 | tee /tmp/docker-build.log; then
+            print_success "Docker image built successfully using offline Dockerfile"
+            BUILD_SUCCESS=true
         fi
     fi
-
-    # Build the base image first (if not already present)
-    echo "Checking for local Python base image..."
-    if ! docker images | grep -q "local-python-base.*3.11"; then
-        echo "Base image not found. Building local-python-base:3.11..."
-        cd ..
-        if [ -f "Dockerfile.base" ]; then
-            echo "Attempting to build base image (this may take a while on first run)..."
+    
+    # Option 2: Check for almalinux:8
+    if [ "$BUILD_SUCCESS" = false ] && echo "$AVAILABLE_IMAGES" | grep -q "almalinux:8"; then
+        print_warning "Found almalinux:8 - trying Dockerfile.almalinux"
+        if docker build -t $IMAGE_NAME -f Dockerfile.almalinux . 2>&1 | tee /tmp/docker-build.log; then
+            print_success "Docker image built successfully using Alma Linux Dockerfile"
+            BUILD_SUCCESS=true
+        fi
+    fi
+    
+    # Option 3: Check for local-python-base:3.11
+    if [ "$BUILD_SUCCESS" = false ] && echo "$AVAILABLE_IMAGES" | grep -q "local-python-base:3.11"; then
+        print_warning "Found local-python-base:3.11 - using standard Dockerfile"
+        if docker build -t $IMAGE_NAME . 2>&1 | tee /tmp/docker-build.log; then
+            print_success "Docker image built successfully"
+            BUILD_SUCCESS=true
+        fi
+    fi
+    
+    # Option 4: Try to build base image
+    if [ "$BUILD_SUCCESS" = false ]; then
+        print_warning "No suitable base image found. Attempting to build local-python-base..."
+        
+        # Check if any base image is available that Dockerfile.base can use
+        DOCKERFILE_BASE_OPTIONS=("registry.access.redhat.com/ubi8/ubi-minimal:8.9" "almalinux:8" "rockylinux:8" "centos:8")
+        BASE_FOUND=false
+        
+        for base_img in "${DOCKERFILE_BASE_OPTIONS[@]}"; do
+            if echo "$AVAILABLE_IMAGES" | grep -q "${base_img}"; then
+                print_success "Found base image: $base_img"
+                BASE_FOUND=true
+                break
+            fi
+        done
+        
+        if [ "$BASE_FOUND" = true ] && [ -f "Dockerfile.base" ]; then
             if docker build -t local-python-base:3.11 -f Dockerfile.base . 2>&1 | tee /tmp/base-build.log; then
                 print_success "Base image built successfully"
-            else
-                print_error "Failed to build base image"
-                echo "Error log saved to /tmp/base-build.log"
-                print_warning "You may need to manually load a Python base image"
-                print_warning "See Dockerfile.base and Dockerfile.almalinux for alternatives"
-                exit 1
+                # Now try building the main image
+                if docker build -t $IMAGE_NAME . 2>&1 | tee /tmp/docker-build.log; then
+                    print_success "Docker image built successfully"
+                    BUILD_SUCCESS=true
+                fi
             fi
-        else
-            print_error "Dockerfile.base not found"
-            exit 1
         fi
-        cd helm-charts
-    else
-        print_success "Base image already exists"
     fi
-
-    # Build the application image
-    echo "Building Docker image: $IMAGE_NAME"
-    cd ..
-    if docker build -t $IMAGE_NAME . 2>&1 | tee /tmp/docker-build.log; then
-        print_success "Docker image built successfully"
-    else
-        print_error "Failed to build Docker image"
-        echo "Error log saved to /tmp/docker-build.log"
+    
+    # If all options failed, provide clear instructions
+    if [ "$BUILD_SUCCESS" = false ]; then
+        cd helm-charts
+        print_error "Failed to build Docker image - no suitable base image available"
         echo ""
-        print_warning "Troubleshooting tips for Alma Linux 8:"
-        echo "  1. Check if base images are available: docker images"
-        echo "  2. Try building with Alma-specific Dockerfile:"
-        echo "     docker build -t $IMAGE_NAME -f Dockerfile.almalinux ."
-        echo "  3. Check network connectivity: curl -I https://registry.access.redhat.com"
-        echo "  4. For completely offline setup, pre-load required images"
+        echo "╔════════════════════════════════════════════════════════════════════╗"
+        echo "║          OFFLINE DEPLOYMENT INSTRUCTIONS                           ║"
+        echo "╚════════════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "Your system appears to be offline with no suitable base images."
+        echo ""
+        echo "📦 SOLUTION: Load a base image manually"
+        echo ""
+        echo "On a machine WITH internet access:"
+        echo "  docker pull python:3.11-slim"
+        echo "  docker save python:3.11-slim -o python-3.11-slim.tar"
+        echo ""
+        echo "Transfer python-3.11-slim.tar to this server, then run:"
+        echo "  eval \$(minikube docker-env)"
+        echo "  docker load -i python-3.11-slim.tar"
+        echo "  docker images  # Verify it loaded"
+        echo ""
+        echo "Then re-run this deploy script: ./deploy.sh"
+        echo ""
+        echo "Available images currently in your system:"
+        docker images --format "  • {{.Repository}}:{{.Tag}} ({{.Size}})" | head -10
+        echo ""
         exit 1
     fi
+    
     cd helm-charts
 
     # Verify image was built
     if docker images | grep -q "heart-disease-api"; then
-        print_success "Docker image built successfully"
+        print_success "Docker image built and verified"
     else
         print_error "Failed to build Docker image"
         exit 1
