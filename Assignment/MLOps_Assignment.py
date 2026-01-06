@@ -22,6 +22,95 @@ from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
+try:
+    import requests
+    from io import BytesIO
+    from zipfile import ZipFile
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+
+
+# ==========================
+# Data Acquisition
+# ==========================
+
+
+def download_heart_disease_dataset(
+    save_dir: str | Path = "./data",
+    force_download: bool = False,
+) -> Path:
+    """Download the Heart Disease UCI Dataset and return the data directory.
+
+    Downloads the official UCI Heart Disease archive ZIP, extracts it into
+    ``save_dir``, and returns the path containing files like ``processed.cleveland.data``.
+
+    Args:
+        save_dir: Directory to save the dataset
+        force_download: If True, download even if data already exists
+
+    Returns:
+        Path to the data directory
+
+    Raises:
+        ImportError: If requests library is not installed
+        FileNotFoundError: If expected data files are not found after download
+    """
+    if not REQUESTS_AVAILABLE:
+        raise ImportError(
+            "The 'requests' library is required for downloading datasets. "
+            "Install it with: pip install requests"
+        )
+
+    save_path = Path(save_dir)
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    # If data directory already has the key files, reuse it
+    key_file = save_path / "processed.cleveland.data"
+    if key_file.exists() and not force_download:
+        print(f"Dataset already present at: {save_path}")
+        return save_path
+
+    url = "https://archive.ics.uci.edu/static/public/45/heart+disease.zip"
+
+    try:
+        print("Downloading Heart Disease dataset from UCI Repository...")
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+
+        print(f"Extracting dataset to: {save_path}")
+        with ZipFile(BytesIO(response.content)) as zip_file:
+            zip_file.extractall(save_path)
+
+        # After extraction, confirm key file(s) exist
+        if not key_file.exists():
+            # Some mirrors may have slightly different names; fall back to any *.data file
+            data_candidates = list(save_path.glob("*.data"))
+            if not data_candidates:
+                raise FileNotFoundError(
+                    f"Expected 'processed.cleveland.data' or any '*.data' file in {save_path}, "
+                    "but none were found after extraction."
+                )
+            else:
+                print("Warning: 'processed.cleveland.data' not found; using first .data file present.")
+
+        files = list(save_path.glob("*"))
+        print(f"\nDataset directory: {save_path}")
+        print(f"Contains {len(files)} items:")
+        for f in sorted(files)[:20]:
+            print(f"  - {f.name}")
+        if len(files) > 20:
+            print(f"  ... and {len(files) - 20} more")
+
+        return save_path
+
+    except requests.exceptions.RequestException as e:
+        print(f"✗ Error downloading dataset: {e}")
+        raise
+    except Exception as e:
+        print(f"✗ Error extracting dataset: {e}")
+        raise
+
 
 # ==========================
 # Data loading & processing
@@ -97,6 +186,263 @@ def clean_and_preprocess_heart_data(df: pd.DataFrame) -> pd.DataFrame:
         raise KeyError("Expected 'target' column in dataframe")
 
     return df
+
+
+def validate_heart_data(df: pd.DataFrame) -> dict:
+    """Validate data quality and return validation metrics.
+
+    Performs:
+    - Schema validation (expected columns)
+    - Data type checks
+    - Range validation for numeric features
+    - Missing value detection
+    - Outlier detection using IQR method
+    """
+    validation_results = {
+        "is_valid": True,
+        "errors": [],
+        "warnings": [],
+        "metrics": {},
+    }
+
+    # Expected schema
+    expected_columns = [
+        "age", "sex", "cp", "trestbps", "chol", "fbs", "restecg",
+        "thalach", "exang", "oldpeak", "slope", "ca", "thal", "target"
+    ]
+
+    # 1. Schema validation
+    missing_cols = set(expected_columns) - set(df.columns)
+    extra_cols = set(df.columns) - set(expected_columns)
+
+    if missing_cols:
+        validation_results["errors"].append(f"Missing columns: {missing_cols}")
+        validation_results["is_valid"] = False
+
+    if extra_cols:
+        validation_results["warnings"].append(f"Extra columns found: {extra_cols}")
+
+    # 2. Missing values check
+    missing_counts = df.isnull().sum()
+    if missing_counts.any():
+        validation_results["warnings"].append(
+            f"Missing values found: {missing_counts[missing_counts > 0].to_dict()}"
+        )
+
+    # 3. Range validation for key numeric features
+    range_checks = {
+        "age": (0, 120),
+        "trestbps": (50, 250),  # resting blood pressure
+        "chol": (100, 600),  # cholesterol
+        "thalach": (50, 250),  # max heart rate
+        "oldpeak": (0, 10),  # ST depression
+    }
+
+    for col, (min_val, max_val) in range_checks.items():
+        if col in df.columns:
+            out_of_range = df[(df[col] < min_val) | (df[col] > max_val)]
+            if len(out_of_range) > 0:
+                validation_results["warnings"].append(
+                    f"{col}: {len(out_of_range)} values outside expected range [{min_val}, {max_val}]"
+                )
+
+    # 4. Outlier detection using IQR
+    numeric_cols = df.select_dtypes(include=["int64", "float64", "Int64", "Float64"]).columns
+    outlier_summary = {}
+
+    for col in numeric_cols:
+        if col == "target":
+            continue
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)]
+        if len(outliers) > 0:
+            outlier_summary[col] = len(outliers)
+
+    if outlier_summary:
+        validation_results["metrics"]["outliers"] = outlier_summary
+        validation_results["warnings"].append(f"Outliers detected (IQR method): {outlier_summary}")
+
+    # 5. Data quality metrics
+    validation_results["metrics"]["total_rows"] = len(df)
+    validation_results["metrics"]["total_columns"] = len(df.columns)
+    validation_results["metrics"]["missing_values"] = df.isnull().sum().sum()
+    validation_results["metrics"]["duplicate_rows"] = df.duplicated().sum()
+
+    if "target" in df.columns:
+        validation_results["metrics"]["class_balance"] = df["target"].value_counts().to_dict()
+
+    return validation_results
+
+
+def perform_eda_heart_data(
+    df: pd.DataFrame,
+    output_dir: str | Path = "./artifacts/eda",
+    save_plots: bool = True,
+) -> dict:
+    """Perform comprehensive EDA with professional visualizations.
+
+    Creates and optionally saves:
+    - Histograms for numerical features with KDE
+    - Correlation heatmap
+    - Class balance bar plot
+    - Box plots of key features by target
+    - Outlier detection visualization
+    - Feature distribution summary
+
+    Returns:
+    - Dictionary with EDA statistics and plot paths
+    """
+    output_dir = Path(output_dir)
+    if save_plots:
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    eda_results = {
+        "plots": [],
+        "statistics": {},
+    }
+
+    sns.set(style="whitegrid", context="notebook")
+
+    # 1. Enhanced Histograms for numerical features
+    numeric_cols = df.select_dtypes(include=["int64", "float64", "Int64", "Float64"]).columns
+    if len(numeric_cols) > 0:
+        n_cols = 3
+        n_rows = int((len(numeric_cols) + n_cols - 1) / n_cols)
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 4 * n_rows))
+        axes = axes.flatten() if n_rows > 1 else [axes]
+
+        for i, col in enumerate(numeric_cols):
+            sns.histplot(df[col].dropna(), kde=True, bins=30, color="#3498db",
+                        edgecolor="black", alpha=0.7, ax=axes[i])
+            axes[i].set_title(f"Distribution of {col.upper()}", fontsize=12, fontweight="bold")
+            axes[i].set_xlabel(col, fontsize=10)
+            axes[i].set_ylabel("Frequency", fontsize=10)
+            axes[i].grid(axis="y", alpha=0.3)
+
+        # Hide extra subplots
+        for j in range(i + 1, len(axes)):
+            axes[j].set_visible(False)
+
+        plt.tight_layout()
+        if save_plots:
+            plot_path = output_dir / "histograms_numerical_features.png"
+            plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+            eda_results["plots"].append(str(plot_path))
+        plt.close()
+
+    # 2. Enhanced Correlation heatmap
+    if len(numeric_cols) > 1:
+        plt.figure(figsize=(12, 10))
+        corr = df[numeric_cols].corr()
+        mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
+        sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="RdYlBu_r",
+                   center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8})
+        plt.title("Correlation Heatmap (Numerical Features)", fontsize=14, fontweight="bold", pad=20)
+        plt.tight_layout()
+        if save_plots:
+            plot_path = output_dir / "correlation_heatmap.png"
+            plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+            eda_results["plots"].append(str(plot_path))
+        plt.close()
+
+    # 3. Enhanced Class balance with percentages
+    if "target" in df.columns:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        target_counts = df["target"].value_counts().sort_index()
+        colors = ["#2ecc71", "#e74c3c"]
+        bars = ax.bar(target_counts.index, target_counts.values, color=colors,
+                     edgecolor="black", linewidth=1.5, alpha=0.8)
+
+        # Add value labels on bars
+        for bar in bars:
+            height = bar.get_height()
+            percentage = (height / len(df)) * 100
+            ax.text(bar.get_x() + bar.get_width() / 2., height,
+                   f"{int(height)}\n({percentage:.1f}%)",
+                   ha="center", va="bottom", fontsize=11, fontweight="bold")
+
+        ax.set_title("Target Variable Distribution", fontsize=14, fontweight="bold", pad=20)
+        ax.set_xlabel("Target (0 = No Disease, 1 = Disease)", fontsize=11, fontweight="bold")
+        ax.set_ylabel("Count", fontsize=11, fontweight="bold")
+        ax.set_xticks(sorted(target_counts.index.tolist()))
+        ax.grid(axis="y", alpha=0.3)
+        plt.tight_layout()
+        if save_plots:
+            plot_path = output_dir / "class_balance.png"
+            plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+            eda_results["plots"].append(str(plot_path))
+        plt.close()
+
+        eda_results["statistics"]["class_distribution"] = target_counts.to_dict()
+
+    # 4. Box plots for key features by target
+    if "target" in df.columns and len(numeric_cols) > 1:
+        key_features = ["age", "trestbps", "chol", "thalach", "oldpeak"]
+        available_features = [f for f in key_features if f in numeric_cols]
+
+        if available_features:
+            fig, axes = plt.subplots(1, len(available_features),
+                                    figsize=(5 * len(available_features), 5))
+            if len(available_features) == 1:
+                axes = [axes]
+
+            for i, feature in enumerate(available_features):
+                sns.boxplot(x="target", y=feature, data=df, ax=axes[i], palette="Set2")
+                axes[i].set_title(f"{feature.upper()} by Target", fontsize=11, fontweight="bold")
+                axes[i].set_xlabel("Target", fontsize=10)
+                axes[i].set_ylabel(feature, fontsize=10)
+
+            plt.tight_layout()
+            if save_plots:
+                plot_path = output_dir / "boxplots_by_target.png"
+                plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+                eda_results["plots"].append(str(plot_path))
+            plt.close()
+
+    # 5. Outlier detection visualization
+    if len(numeric_cols) > 1:
+        outlier_cols = [col for col in numeric_cols if col != "target"][:6]  # Limit to 6
+        if outlier_cols:
+            fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+            axes = axes.flatten()
+
+            for i, col in enumerate(outlier_cols):
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+
+                # Plot data with outlier bounds
+                axes[i].scatter(range(len(df)), df[col], alpha=0.5, s=10)
+                axes[i].axhline(y=upper_bound, color="r", linestyle="--", label="Upper Bound")
+                axes[i].axhline(y=lower_bound, color="r", linestyle="--", label="Lower Bound")
+                axes[i].set_title(f"{col.upper()} - Outlier Detection", fontsize=10, fontweight="bold")
+                axes[i].set_xlabel("Index", fontsize=9)
+                axes[i].set_ylabel(col, fontsize=9)
+                axes[i].legend(fontsize=8)
+
+            # Hide extra subplots
+            for j in range(len(outlier_cols), 6):
+                axes[j].set_visible(False)
+
+            plt.tight_layout()
+            if save_plots:
+                plot_path = output_dir / "outlier_detection.png"
+                plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+                eda_results["plots"].append(str(plot_path))
+            plt.close()
+
+    # 6. Statistical summary
+    eda_results["statistics"]["summary_stats"] = df.describe().to_dict()
+    eda_results["statistics"]["missing_values"] = df.isnull().sum().to_dict()
+    eda_results["statistics"]["data_types"] = df.dtypes.astype(str).to_dict()
+
+    return eda_results
 
 
 def prepare_ml_features(

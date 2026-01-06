@@ -7,6 +7,7 @@ Complete MLOps implementation with FastAPI, Kubernetes deployment, Prometheus mo
 ## 📋 Table of Contents
 
 - [Quick Start](#-quick-start)
+- [Data Acquisition & EDA](#-data-acquisition--eda)
 - [Project Overview](#-project-overview)
 - [Architecture](#-architecture)
 - [Deployment](#-deployment)
@@ -50,7 +51,120 @@ cd ..
 
 ---
 
-## 📖 Project Overview
+## � Data Acquisition & EDA
+
+### Dataset Information
+
+**Source**: UCI Machine Learning Repository - Heart Disease Dataset  
+**URL**: https://archive.ics.uci.edu/dataset/45/heart+disease  
+**Citation**: 
+- Hungarian Institute of Cardiology. Budapest: Andras Janosi, M.D.
+- University Hospital, Zurich, Switzerland: William Steinbrunn, M.D.
+- University Hospital, Basel, Switzerland: Matthias Pfisterer, M.D.
+- V.A. Medical Center, Long Beach and Cleveland Clinic Foundation: Robert Detrano, M.D., Ph.D.
+
+### Dataset Statistics
+
+- **Instances**: 303 (Cleveland dataset)
+- **Features**: 14 attributes (age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal, target)
+- **Target**: Binary classification (0 = no disease, 1 = disease present)
+- **Missing Values**: Present (marked as '?'), handled during preprocessing
+
+### Download Dataset
+
+**Option 1: Automated Download (Recommended)**
+
+Use the Jupyter notebook which includes automated download:
+
+```python
+from pathlib import Path
+from MLOps_Assignment import download_heart_disease_dataset
+
+# Downloads from UCI and extracts to ./data
+dataset_path = download_heart_disease_dataset(save_dir="./data")
+```
+
+**Option 2: Manual Download**
+
+```bash
+cd Assignment/data
+wget https://archive.ics.uci.edu/static/public/45/heart+disease.zip
+unzip heart+disease.zip
+```
+
+The dataset is already included in this repository at `Assignment/data/processed.cleveland.data`.
+
+### Data Preprocessing Pipeline
+
+Our preprocessing includes:
+
+1. **Missing Value Handling**: Replace '?' markers with NaN and drop rows
+2. **Type Conversion**: Convert numeric columns to proper dtypes
+3. **Target Binarization**: Convert multi-class target (0-4) to binary (0/1)
+4. **Feature Encoding**: One-hot encoding for categorical features
+5. **Feature Scaling**: StandardScaler for numeric features
+6. **Stratified Split**: 80/20 train-test split maintaining class balance
+
+### Exploratory Data Analysis
+
+The project includes comprehensive EDA with:
+
+- **Distribution Analysis**: Histograms with KDE for all numeric features
+- **Correlation Analysis**: Heatmap showing feature relationships
+- **Class Balance**: Visualization of target distribution
+- **Outlier Detection**: IQR-based outlier identification
+- **Feature Comparison**: Box plots comparing features by target class
+
+**Run EDA**:
+
+```python
+from MLOps_Assignment import load_raw_heart_data, clean_and_preprocess_heart_data, perform_eda_heart_data
+
+# Load and clean data
+raw_df = load_raw_heart_data("./data")
+cleaned_df = clean_and_preprocess_heart_data(raw_df)
+
+# Generate EDA visualizations
+eda_results = perform_eda_heart_data(cleaned_df, output_dir="./artifacts/eda")
+print(f"EDA plots saved: {eda_results['plots']}")
+```
+
+**EDA Artifacts in MLflow**:
+
+All EDA visualizations are automatically logged to MLflow during training:
+- Histograms of feature distributions
+- Correlation heatmap
+- Class balance plot
+- Box plots by target
+- Outlier detection plots
+
+### Data Validation
+
+Automated data validation includes:
+
+- **Schema Validation**: Ensures expected columns are present
+- **Range Validation**: Checks numeric features are within expected ranges
+  - Age: 0-120 years
+  - Blood Pressure: 50-250 mmHg
+  - Cholesterol: 100-600 mg/dl
+  - Max Heart Rate: 50-250 bpm
+- **Quality Metrics**: Missing values, duplicates, outliers
+- **Class Distribution**: Target class balance
+
+**Run Validation**:
+
+```python
+from MLOps_Assignment import validate_heart_data
+
+validation_results = validate_heart_data(raw_df)
+print(f"Valid: {validation_results['is_valid']}")
+print(f"Errors: {validation_results['errors']}")
+print(f"Warnings: {validation_results['warnings']}")
+```
+
+---
+
+## �📖 Project Overview
 
 ### What This Project Does
 
