@@ -1,0 +1,24 @@
+# Development and Training Requirements
+# Use this file for local development and model training
+# Install with: pip install -r requirements-dev.txt
+
+# Include all API runtime dependencies
+-r requirements.txt
+
+# Visualization
+matplotlib>=3.6.0
+seaborn>=0.12.0
+
+# MLOps and experiment tracking
+mlflow>=2.8.0
+
+# Testing
+pytest>=7.4.0
+
+# Jupyter notebooks
+jupyter>=1.0.0
+
+# Optional: ONNX export
+# skl2onnx>=1.15.0
+# onnx>=1.14.0
+# onnxruntime>=1.15.0
