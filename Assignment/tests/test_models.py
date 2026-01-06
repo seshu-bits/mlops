@@ -1,11 +1,10 @@
 import pandas as pd
-
 from MLOps_Assignment import (
+    cross_validate_models,
+    evaluate_classification_model,
+    train_decision_tree,
     train_logistic_regression,
     train_random_forest,
-    train_decision_tree,
-    evaluate_classification_model,
-    cross_validate_models,
 )
 
 
@@ -44,7 +43,9 @@ def test_train_and_evaluate_models():
         (train_decision_tree, "Decision Tree"),
     ]:
         model = train_fn(X_train, y_train)
-        metrics = evaluate_classification_model(model, X_train, y_train, X_test, y_test, model_name=name)
+        metrics = evaluate_classification_model(
+            model, X_train, y_train, X_test, y_test, model_name=name
+        )
         # Basic sanity checks on metrics keys
         for key in [
             "train_accuracy",

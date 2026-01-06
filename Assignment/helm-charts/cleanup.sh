@@ -42,7 +42,7 @@ confirm_action() {
 
 uninstall_helm_release() {
     print_header "Uninstalling Helm Release"
-    
+
     if helm list -n $NAMESPACE | grep -q $RELEASE_NAME; then
         helm uninstall $RELEASE_NAME -n $NAMESPACE
         print_success "Helm release uninstalled"
@@ -53,7 +53,7 @@ uninstall_helm_release() {
 
 delete_namespace() {
     print_header "Deleting Namespace"
-    
+
     if kubectl get namespace $NAMESPACE &> /dev/null; then
         kubectl delete namespace $NAMESPACE
         print_success "Namespace deleted"
@@ -64,12 +64,12 @@ delete_namespace() {
 
 cleanup_docker_images() {
     print_header "Cleaning Up Docker Images"
-    
+
     read -p "Do you want to remove Docker images? (yes/no): " remove_images
     if [ "$remove_images" = "yes" ]; then
         # Use Minikube's Docker daemon
         eval $(minikube docker-env)
-        
+
         if docker images | grep -q "heart-disease-api"; then
             docker rmi heart-disease-api:latest -f
             print_success "Docker images removed"
@@ -83,14 +83,14 @@ cleanup_docker_images() {
 
 verify_cleanup() {
     print_header "Verifying Cleanup"
-    
+
     # Check Helm releases
     if helm list -n $NAMESPACE 2>/dev/null | grep -q $RELEASE_NAME; then
         print_error "Helm release still exists"
     else
         print_success "No Helm releases found"
     fi
-    
+
     # Check namespace
     if kubectl get namespace $NAMESPACE &> /dev/null; then
         print_warning "Namespace still exists (may take time to terminate)"
@@ -101,16 +101,16 @@ verify_cleanup() {
 
 main() {
     print_header "Heart Disease API - Cleanup"
-    
+
     confirm_action
     uninstall_helm_release
     delete_namespace
     cleanup_docker_images
     verify_cleanup
-    
+
     print_header "Cleanup Complete!"
     print_success "All resources have been cleaned up! 🧹"
-    
+
     echo ""
     echo "If you want to stop Minikube:"
     echo "  minikube stop"

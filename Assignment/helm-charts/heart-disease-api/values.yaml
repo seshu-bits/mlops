@@ -11,12 +11,12 @@ image:
   repository: heart-disease-api
   # Option 2: Use Minikube's local Docker daemon
   # repository: heart-disease-api
-  
+
   # Image pull policy
   # Use 'Never' when using Minikube's Docker daemon
   # Use 'IfNotPresent' or 'Always' when pulling from Docker Hub
   pullPolicy: Never
-  
+
   # Image tag (overrides the appVersion from Chart.yaml)
   tag: "latest"
 

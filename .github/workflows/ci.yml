@@ -36,12 +36,11 @@ jobs:
       # --- Linting step ---
       - name: Lint with flake8
         run: |
-          # Fail on syntax errors or undefined names
-          flake8 Assignment/ --count --select=E9,F63,F7,F82 --show-source --statistics > flake8-critical.log || true
-          # Then run a more permissive style check, but don't fail the build on it (adjust to your preference)
+          # Fail on syntax errors or undefined names (CRITICAL - fails build)
+          flake8 Assignment/ --count --select=E9,F63,F7,F82 --show-source --statistics --tee --output-file=flake8-critical.log
+          # Then run a more permissive style check (WARNING - doesn't fail build)
           flake8 Assignment/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics > flake8-full.log
-          # Show critical errors
-          cat flake8-critical.log
+          echo "✓ Critical linting checks passed"
 
       # --- Unit tests ---
       # Note: Only runs tests in tests/ directory
@@ -52,12 +51,19 @@ jobs:
           cd Assignment
           export PYTHONPATH="${PYTHONPATH}:$(pwd)"
           python -m pytest tests/ -vv \
+            --cov=MLOps_Assignment \
+            --cov=api_server \
+            --cov=ci_train \
+            --cov-report=html \
+            --cov-report=term \
+            --cov-report=term-missing \
+            --cov-report=xml \
             --ignore=integration_tests \
             --html=test-report.html \
             --self-contained-html \
-            --cov-report=html \
-            --cov-report=term \
-            --junitxml=test-results.xml
+            --junitxml=test-results.xml \
+            --durations=10
+          echo "✓ Tests passed with coverage report generated"
 
       # --- Model training (CI run) ---
       - name: Train model and log artifacts
@@ -78,7 +84,7 @@ jobs:
           echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ -f Assignment/test-results.xml ]; then
             echo "## Test Results" >> $GITHUB_STEP_SUMMARY
             echo "✅ Tests completed - see artifacts for detailed report" >> $GITHUB_STEP_SUMMARY
@@ -86,7 +92,7 @@ jobs:
             echo "## Test Results" >> $GITHUB_STEP_SUMMARY
             echo "❌ Test results not found" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Artifacts Generated" >> $GITHUB_STEP_SUMMARY
           echo "- Test reports (HTML)" >> $GITHUB_STEP_SUMMARY

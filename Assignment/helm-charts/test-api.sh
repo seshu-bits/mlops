@@ -42,14 +42,14 @@ get_service_url() {
 # Test health endpoint
 test_health() {
     print_header "Testing Health Endpoint"
-    
+
     echo "Endpoint: GET $SERVICE_URL/health"
     echo ""
-    
+
     response=$(curl -s -w "\n%{http_code}" "$SERVICE_URL/health")
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
-    
+
     if [ "$http_code" -eq 200 ]; then
         print_success "Health check passed (HTTP $http_code)"
         echo "Response:"
@@ -65,14 +65,14 @@ test_health() {
 # Test root endpoint
 test_root() {
     print_header "Testing Root Endpoint"
-    
+
     echo "Endpoint: GET $SERVICE_URL/"
     echo ""
-    
+
     response=$(curl -s -w "\n%{http_code}" "$SERVICE_URL/")
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
-    
+
     if [ "$http_code" -eq 200 ]; then
         print_success "Root endpoint passed (HTTP $http_code)"
         echo "Response:"
@@ -88,10 +88,10 @@ test_root() {
 # Test single prediction
 test_single_prediction() {
     print_header "Testing Single Prediction"
-    
+
     echo "Endpoint: POST $SERVICE_URL/predict"
     echo ""
-    
+
     payload='{
       "age": 63,
       "sex": 1,
@@ -107,18 +107,18 @@ test_single_prediction() {
       "ca": 0,
       "thal": 1
     }'
-    
+
     echo "Payload:"
     echo "$payload" | jq '.'
     echo ""
-    
+
     response=$(curl -s -w "\n%{http_code}" -X POST "$SERVICE_URL/predict" \
         -H "Content-Type: application/json" \
         -d "$payload")
-    
+
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
-    
+
     if [ "$http_code" -eq 200 ]; then
         print_success "Single prediction passed (HTTP $http_code)"
         echo "Response:"
@@ -134,10 +134,10 @@ test_single_prediction() {
 # Test batch prediction
 test_batch_prediction() {
     print_header "Testing Batch Prediction"
-    
+
     echo "Endpoint: POST $SERVICE_URL/predict/batch"
     echo ""
-    
+
     payload='{
       "patients": [
         {
@@ -152,17 +152,17 @@ test_batch_prediction() {
         }
       ]
     }'
-    
+
     echo "Payload: 2 patients"
     echo ""
-    
+
     response=$(curl -s -w "\n%{http_code}" -X POST "$SERVICE_URL/predict/batch" \
         -H "Content-Type: application/json" \
         -d "$payload")
-    
+
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
-    
+
     if [ "$http_code" -eq 200 ]; then
         print_success "Batch prediction passed (HTTP $http_code)"
         echo "Response:"
@@ -178,11 +178,11 @@ test_batch_prediction() {
 # Test invalid input
 test_invalid_input() {
     print_header "Testing Invalid Input Validation"
-    
+
     echo "Endpoint: POST $SERVICE_URL/predict"
     echo "Testing with invalid age (-5)"
     echo ""
-    
+
     payload='{
       "age": -5,
       "sex": 1,
@@ -198,14 +198,14 @@ test_invalid_input() {
       "ca": 0,
       "thal": 1
     }'
-    
+
     response=$(curl -s -w "\n%{http_code}" -X POST "$SERVICE_URL/predict" \
         -H "Content-Type: application/json" \
         -d "$payload")
-    
+
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
-    
+
     if [ "$http_code" -eq 422 ]; then
         print_success "Input validation working correctly (HTTP $http_code)"
         echo "Response:"
@@ -220,7 +220,7 @@ test_invalid_input() {
 # Test docs endpoint
 test_docs() {
     print_header "Testing Documentation Endpoints"
-    
+
     # Test /docs
     echo "Testing: GET $SERVICE_URL/docs"
     response=$(curl -s -w "%{http_code}" "$SERVICE_URL/docs" -o /dev/null)
@@ -229,7 +229,7 @@ test_docs() {
     else
         print_error "API Docs endpoint failed (HTTP $response)"
     fi
-    
+
     # Test /redoc
     echo "Testing: GET $SERVICE_URL/redoc"
     response=$(curl -s -w "%{http_code}" "$SERVICE_URL/redoc" -o /dev/null)
@@ -244,16 +244,16 @@ test_docs() {
 # Performance test
 test_performance() {
     print_header "Running Performance Test"
-    
+
     echo "Sending 10 requests to measure response time..."
     echo ""
-    
+
     total_time=0
     success_count=0
-    
+
     for i in {1..10}; do
         start_time=$(date +%s%3N)
-        
+
         response=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL/predict" \
             -H "Content-Type: application/json" \
             -d '{
@@ -261,11 +261,11 @@ test_performance() {
               "fbs": 1, "restecg": 0, "thalach": 150, "exang": 0,
               "oldpeak": 2.3, "slope": 0, "ca": 0, "thal": 1
             }' -o /dev/null)
-        
+
         end_time=$(date +%s%3N)
         duration=$((end_time - start_time))
         total_time=$((total_time + duration))
-        
+
         if [ "$response" -eq 200 ]; then
             success_count=$((success_count + 1))
             echo "Request $i: ${duration}ms ✓"
@@ -273,9 +273,9 @@ test_performance() {
             echo "Request $i: Failed (HTTP $response) ✗"
         fi
     done
-    
+
     avg_time=$((total_time / 10))
-    
+
     echo ""
     echo "Performance Summary:"
     echo "  • Total requests: 10"
@@ -288,12 +288,12 @@ test_performance() {
 # Main execution
 main() {
     print_header "Heart Disease API - Test Suite"
-    
+
     echo "Getting service URL..."
     SERVICE_URL=$(get_service_url)
     echo "Service URL: $SERVICE_URL"
     echo ""
-    
+
     # Run tests
     test_health
     test_root
@@ -302,7 +302,7 @@ main() {
     test_invalid_input
     test_docs
     test_performance
-    
+
     print_header "Test Suite Complete!"
     print_success "All tests completed! 🎉"
 }

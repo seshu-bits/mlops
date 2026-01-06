@@ -1,0 +1,9 @@
+# Bandit security configuration
+[bandit]
+exclude_dirs = /tests/,/integration_tests/,/data/,/mlruns/,/artifacts/,/__pycache__/,/.git/,/htmlcov/,/.pytest_cache/
+
+# Skip specific test IDs
+# B101: assert_used (we use asserts in tests)
+skips = B101
+
+# Severity levels: LOW, MEDIUM, HIGH

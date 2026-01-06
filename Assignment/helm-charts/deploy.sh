@@ -39,7 +39,7 @@ print_error() {
 
 check_prerequisites() {
     print_header "Checking Prerequisites"
-    
+
     # Check if Minikube is running
     if ! minikube status &> /dev/null; then
         print_error "Minikube is not running. Please start Minikube first."
@@ -47,14 +47,14 @@ check_prerequisites() {
         exit 1
     fi
     print_success "Minikube is running"
-    
+
     # Check if Helm is installed
     if ! command -v helm &> /dev/null; then
         print_error "Helm is not installed"
         exit 1
     fi
     print_success "Helm is installed"
-    
+
     # Check if kubectl is installed
     if ! command -v kubectl &> /dev/null; then
         print_error "kubectl is not installed"
@@ -65,23 +65,23 @@ check_prerequisites() {
 
 build_docker_image() {
     print_header "Building Docker Image"
-    
+
     # Configure Docker to use Minikube's daemon
     eval $(minikube docker-env)
     print_success "Configured to use Minikube's Docker daemon"
-    
+
     # Check if Dockerfile exists
     if [ ! -f "../Dockerfile" ]; then
         print_error "Dockerfile not found in parent directory"
         exit 1
     fi
-    
+
     # Build the image
     echo "Building Docker image: $IMAGE_NAME"
     cd ..
     docker build -t $IMAGE_NAME .
     cd helm-charts
-    
+
     # Verify image was built
     if docker images | grep -q "heart-disease-api"; then
         print_success "Docker image built successfully"
@@ -93,7 +93,7 @@ build_docker_image() {
 
 install_or_upgrade() {
     print_header "Installing/Upgrading Helm Release"
-    
+
     # Check if release already exists
     if helm list -n $NAMESPACE | grep -q $RELEASE_NAME; then
         echo "Release $RELEASE_NAME already exists. Upgrading..."
@@ -117,21 +117,21 @@ install_or_upgrade() {
 
 verify_deployment() {
     print_header "Verifying Deployment"
-    
+
     # Wait for pods to be ready
     echo "Waiting for pods to be ready..."
     kubectl wait --for=condition=ready pod \
         -l app=heart-disease-api \
         -n $NAMESPACE \
         --timeout=300s
-    
+
     print_success "Pods are ready"
-    
+
     # Show pod status
     echo ""
     echo "Pod Status:"
     kubectl get pods -n $NAMESPACE -l app=heart-disease-api
-    
+
     # Show service status
     echo ""
     echo "Service Status:"
@@ -140,11 +140,11 @@ verify_deployment() {
 
 test_api() {
     print_header "Testing API"
-    
+
     # Get service URL
     SERVICE_URL=$(minikube service $RELEASE_NAME -n $NAMESPACE --url)
     echo "Service URL: $SERVICE_URL"
-    
+
     # Test health endpoint
     echo ""
     echo "Testing health endpoint..."
@@ -158,9 +158,9 @@ test_api() {
 
 show_access_info() {
     print_header "Access Information"
-    
+
     SERVICE_URL=$(minikube service $RELEASE_NAME -n $NAMESPACE --url)
-    
+
     echo ""
     echo "API Endpoints:"
     echo "  • Health Check:   $SERVICE_URL/health"
@@ -180,14 +180,14 @@ show_access_info() {
 # Main execution
 main() {
     print_header "Heart Disease API - Minikube Deployment"
-    
+
     check_prerequisites
     build_docker_image
     install_or_upgrade
     verify_deployment
     test_api
     show_access_info
-    
+
     print_header "Deployment Complete!"
     print_success "Your API is ready to use! 🚀"
 }

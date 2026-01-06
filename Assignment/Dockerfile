@@ -1,5 +1,11 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+# Use an unpinned Python base image
+# NOTE: This avoids a hard dependency on the specific python:3.11-slim tag,
+# which can cause issues in restricted or air‑gapped environments that
+# cannot reach Docker Hub to resolve that exact image.
+# If you need full control, you can retag a locally available base image
+# (for example built inside Minikube) as "python:local" and use that name
+# here so that no external registry lookup is required.
+FROM python:3.11
 
 # Set working directory
 WORKDIR /app

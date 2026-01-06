@@ -1,9 +1,11 @@
 """
 Pytest configuration for integration tests.
 """
+
+import time
+
 import pytest
 import requests
-import time
 
 API_URL = "http://localhost:8000"
 
@@ -28,7 +30,7 @@ def check_api_server():
             "API server is not running at http://localhost:8000. "
             "Start the server before running integration tests:\n"
             "  uvicorn api_server:app --host 0.0.0.0 --port 8000",
-            allow_module_level=True
+            allow_module_level=True,
         )
 
 

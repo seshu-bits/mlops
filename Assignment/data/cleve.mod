@@ -7,13 +7,13 @@
 % Attributes: 8 symbolic, 6 numeric.
 %  Age; sex; chest pain type (angina, abnang, notang, asympt)
 %  Trestbps (resting blood pres); cholesteral; fasting blood sugar < 120
-%  (true or false); resting ecg (norm, abn, hyper); max heart rate; 
+%  (true or false); resting ecg (norm, abn, hyper); max heart rate;
 %  exercise induced angina (true or false); oldpeak; slope (up, flat, down)
 %  number of vessels colored (???); thal (norm, fixed, rever). Finally, the
 %  class is either healthy (buff) or with heart-disease (sick).
 %
-% Original atts: 
-%   age; sex (1,0); cp (1-4); trestbps; chol; fbs (1,0); restecg (0,1,2); 
+% Original atts:
+%   age; sex (1,0); cp (1-4); trestbps; chol; fbs (1,0); restecg (0,1,2);
 %   thalach; exang (1,0); oldpeak; slope (1,2,3); ca; thal (3,6,7);
 %   class att: 0 is healthy, 1,2,3,4 is sick.
 % ======================================================================
@@ -321,4 +321,3 @@
 49.0 male notang 118.0 149.0 fal   hyp 126.0 fal  0.8   up 3.0 norm sick S1
 74.0  fem abnang 120.0 269.0 fal   hyp 121.0 true 0.2   up 1.0 norm buff  H
 54.0  fem notang 160.0 201.0 fal  norm 163.0 fal  0.0   up 1.0 norm buff  H
-

@@ -135,18 +135,18 @@ for i in $(seq 1 $NUM_REQUESTS); do
       "thal": 3
     }'
   fi
-  
+
   status_code=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "$API_URL/predict" \
     -H "Content-Type: application/json" \
     -d "$patient_data")
-  
+
   if [ "$status_code" -eq 200 ]; then
     ((success++))
   else
     ((failed++))
   fi
-  
+
   # Progress indicator
   if [ $((i % 10)) -eq 0 ]; then
     echo "  Progress: $i/$NUM_REQUESTS requests sent (Success: $success, Failed: $failed)"

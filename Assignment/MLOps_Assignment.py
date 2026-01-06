@@ -11,13 +11,7 @@ import pandas as pd
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 from sklearn.model_selection import (
     GridSearchCV,
     RandomizedSearchCV,
@@ -29,9 +23,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
 try:
-    import requests
     from io import BytesIO
     from zipfile import ZipFile
+
+    import requests
+
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False
@@ -98,7 +94,9 @@ def download_heart_disease_dataset(
                     "but none were found after extraction."
                 )
             else:
-                print("Warning: 'processed.cleveland.data' not found; using first .data file present.")
+                print(
+                    "Warning: 'processed.cleveland.data' not found; using first .data file present."
+                )
 
         files = list(save_path.glob("*"))
         print(f"\nDataset directory: {save_path}")
@@ -213,8 +211,20 @@ def validate_heart_data(df: pd.DataFrame) -> dict:
 
     # Expected schema
     expected_columns = [
-        "age", "sex", "cp", "trestbps", "chol", "fbs", "restecg",
-        "thalach", "exang", "oldpeak", "slope", "ca", "thal", "target"
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "chol",
+        "fbs",
+        "restecg",
+        "thalach",
+        "exang",
+        "oldpeak",
+        "slope",
+        "ca",
+        "thal",
+        "target",
     ]
 
     # 1. Schema validation
@@ -322,8 +332,15 @@ def perform_eda_heart_data(
         axes = axes.flatten() if n_rows > 1 else [axes]
 
         for i, col in enumerate(numeric_cols):
-            sns.histplot(df[col].dropna(), kde=True, bins=30, color="#3498db",
-                        edgecolor="black", alpha=0.7, ax=axes[i])
+            sns.histplot(
+                df[col].dropna(),
+                kde=True,
+                bins=30,
+                color="#3498db",
+                edgecolor="black",
+                alpha=0.7,
+                ax=axes[i],
+            )
             axes[i].set_title(f"Distribution of {col.upper()}", fontsize=12, fontweight="bold")
             axes[i].set_xlabel(col, fontsize=10)
             axes[i].set_ylabel("Frequency", fontsize=10)
@@ -345,9 +362,20 @@ def perform_eda_heart_data(
         plt.figure(figsize=(12, 10))
         corr = df[numeric_cols].corr()
         mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
-        sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="RdYlBu_r",
-                   center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8})
-        plt.title("Correlation Heatmap (Numerical Features)", fontsize=14, fontweight="bold", pad=20)
+        sns.heatmap(
+            corr,
+            mask=mask,
+            annot=True,
+            fmt=".2f",
+            cmap="RdYlBu_r",
+            center=0,
+            square=True,
+            linewidths=1,
+            cbar_kws={"shrink": 0.8},
+        )
+        plt.title(
+            "Correlation Heatmap (Numerical Features)", fontsize=14, fontweight="bold", pad=20
+        )
         plt.tight_layout()
         if save_plots:
             plot_path = output_dir / "correlation_heatmap.png"
@@ -360,16 +388,28 @@ def perform_eda_heart_data(
         fig, ax = plt.subplots(figsize=(8, 6))
         target_counts = df["target"].value_counts().sort_index()
         colors = ["#2ecc71", "#e74c3c"]
-        bars = ax.bar(target_counts.index, target_counts.values, color=colors,
-                     edgecolor="black", linewidth=1.5, alpha=0.8)
+        bars = ax.bar(
+            target_counts.index,
+            target_counts.values,
+            color=colors,
+            edgecolor="black",
+            linewidth=1.5,
+            alpha=0.8,
+        )
 
         # Add value labels on bars
         for bar in bars:
             height = bar.get_height()
             percentage = (height / len(df)) * 100
-            ax.text(bar.get_x() + bar.get_width() / 2., height,
-                   f"{int(height)}\n({percentage:.1f}%)",
-                   ha="center", va="bottom", fontsize=11, fontweight="bold")
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height,
+                f"{int(height)}\n({percentage:.1f}%)",
+                ha="center",
+                va="bottom",
+                fontsize=11,
+                fontweight="bold",
+            )
 
         ax.set_title("Target Variable Distribution", fontsize=14, fontweight="bold", pad=20)
         ax.set_xlabel("Target (0 = No Disease, 1 = Disease)", fontsize=11, fontweight="bold")
@@ -391,8 +431,9 @@ def perform_eda_heart_data(
         available_features = [f for f in key_features if f in numeric_cols]
 
         if available_features:
-            fig, axes = plt.subplots(1, len(available_features),
-                                    figsize=(5 * len(available_features), 5))
+            fig, axes = plt.subplots(
+                1, len(available_features), figsize=(5 * len(available_features), 5)
+            )
             if len(available_features) == 1:
                 axes = [axes]
 
@@ -427,7 +468,9 @@ def perform_eda_heart_data(
                 axes[i].scatter(range(len(df)), df[col], alpha=0.5, s=10)
                 axes[i].axhline(y=upper_bound, color="r", linestyle="--", label="Upper Bound")
                 axes[i].axhline(y=lower_bound, color="r", linestyle="--", label="Lower Bound")
-                axes[i].set_title(f"{col.upper()} - Outlier Detection", fontsize=10, fontweight="bold")
+                axes[i].set_title(
+                    f"{col.upper()} - Outlier Detection", fontsize=10, fontweight="bold"
+                )
                 axes[i].set_xlabel("Index", fontsize=9)
                 axes[i].set_ylabel(col, fontsize=9)
                 axes[i].legend(fontsize=8)
@@ -878,10 +921,12 @@ def extract_feature_importance(
     indices = np.argsort(importances)[::-1]
 
     # Create DataFrame
-    importance_df = pd.DataFrame({
-        "feature": [feature_names[i] for i in indices],
-        "importance": importances[indices],
-    })
+    importance_df = pd.DataFrame(
+        {
+            "feature": [feature_names[i] for i in indices],
+            "importance": importances[indices],
+        }
+    )
 
     # Plot top N features
     if save_plot:
@@ -891,7 +936,9 @@ def extract_feature_importance(
         plt.figure(figsize=(10, 8))
         top_features = importance_df.head(top_n)
 
-        plt.barh(range(len(top_features)), top_features["importance"], color="#3498db", edgecolor="black")
+        plt.barh(
+            range(len(top_features)), top_features["importance"], color="#3498db", edgecolor="black"
+        )
         plt.yticks(range(len(top_features)), top_features["feature"])
         plt.xlabel("Importance Score", fontsize=12, fontweight="bold")
         plt.ylabel("Features", fontsize=12, fontweight="bold")
@@ -972,7 +1019,7 @@ def save_final_model(
     - Always supports local pickle and MLflow model logging (if an MLflow run is active)
     - Optionally supports ONNX export if ``skl2onnx`` is installed and ``X_sample`` is provided
     - Saves preprocessing scaler alongside model for full reproducibility
-    
+
     Args:
         model: Trained model to save
         model_name: Name for the saved model

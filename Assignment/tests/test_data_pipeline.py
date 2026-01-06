@@ -8,8 +8,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from MLOps_Assignment import (
-    load_raw_heart_data,
     clean_and_preprocess_heart_data,
+    load_raw_heart_data,
     prepare_ml_features,
     train_test_split_features,
 )
@@ -78,7 +78,9 @@ def test_prepare_ml_features_and_split():
     assert list(y) == [0, 1, 0, 1]
 
     # Train/test split preserves size and stratification
-    X_train, X_test, y_train, y_test = train_test_split_features(X, y, test_size=0.5, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split_features(
+        X, y, test_size=0.5, random_state=42
+    )
     assert len(X_train) == len(y_train) == 2
     assert len(X_test) == len(y_test) == 2
     # Class balance should be preserved approximately
