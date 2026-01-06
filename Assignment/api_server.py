@@ -3,24 +3,142 @@ FastAPI server for heart disease prediction model.
 
 This API exposes a /predict endpoint that accepts patient data and returns
 heart disease predictions with confidence scores.
+
+Includes Prometheus metrics for monitoring and observability.
 """
 from __future__ import annotations
 
+import logging
 import pickle
+import time
 from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
+from prometheus_client import Counter, Histogram, Gauge, Info, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Prometheus Metrics
+# Counter for total requests
+request_count = Counter(
+    'api_requests_total',
+    'Total number of API requests',
+    ['method', 'endpoint', 'status_code']
+)
+
+# Counter for predictions
+prediction_count = Counter(
+    'predictions_total',
+    'Total number of predictions made',
+    ['prediction_result', 'model_name']
+)
+
+# Histogram for request duration
+request_duration = Histogram(
+    'api_request_duration_seconds',
+    'Request duration in seconds',
+    ['method', 'endpoint']
+)
+
+# Histogram for prediction latency
+prediction_latency = Histogram(
+    'prediction_duration_seconds',
+    'Prediction processing time in seconds',
+    ['endpoint']
+)
+
+# Histogram for confidence scores
+confidence_scores = Histogram(
+    'prediction_confidence_score',
+    'Confidence scores of predictions',
+    ['prediction_result'],
+    buckets=[0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1.0]
+)
+
+# Gauge for model health
+model_loaded = Gauge('model_loaded', 'Whether the model is loaded (1) or not (0)')
+
+# Gauge for active requests
+active_requests = Gauge('active_requests', 'Number of requests currently being processed')
+
+# Info metric for model information
+model_info_metric = Info('model_info', 'Information about the loaded model')
+
+# Counter for errors
+error_count = Counter(
+    'api_errors_total',
+    'Total number of errors',
+    ['error_type', 'endpoint']
+)
+
+# Middleware for Prometheus metrics
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Skip metrics endpoint to avoid circular tracking
+        if request.url.path == "/metrics":
+            return await call_next(request)
+        
+        # Track active requests
+        active_requests.inc()
+        
+        # Record start time
+        start_time = time.time()
+        
+        # Get method and path
+        method = request.method
+        path = request.url.path
+        
+        try:
+            # Process request
+            response = await call_next(request)
+            
+            # Record metrics
+            duration = time.time() - start_time
+            status_code = response.status_code
+            
+            request_count.labels(method=method, endpoint=path, status_code=status_code).inc()
+            request_duration.labels(method=method, endpoint=path).observe(duration)
+            
+            # Log request
+            logger.info(f"{method} {path} - Status: {status_code} - Duration: {duration:.3f}s")
+            
+            return response
+            
+        except Exception as e:
+            # Record error
+            duration = time.time() - start_time
+            error_count.labels(error_type=type(e).__name__, endpoint=path).inc()
+            request_count.labels(method=method, endpoint=path, status_code=500).inc()
+            request_duration.labels(method=method, endpoint=path).observe(duration)
+            
+            logger.error(f"{method} {path} - Error: {str(e)} - Duration: {duration:.3f}s")
+            raise
+        
+        finally:
+            # Decrease active requests
+            active_requests.dec()
+
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Heart Disease Prediction API",
-    description="API for predicting heart disease using machine learning",
+    description="API for predicting heart disease using machine learning. Includes Prometheus metrics for monitoring.",
     version="1.0.0",
 )
+
+# Add Prometheus middleware
+app.add_middleware(PrometheusMiddleware)
 
 # Global variable to store the loaded model
 model = None
@@ -87,13 +205,23 @@ def load_model(model_path: str = "artifacts/logistic_regression.pkl"):
     
     model_file = Path(model_path)
     if not model_file.exists():
+        logger.error(f"Model file not found: {model_path}")
+        model_loaded.set(0)
         raise FileNotFoundError(f"Model file not found: {model_path}")
     
     with open(model_file, "rb") as f:
         model = pickle.load(f)
     
     model_name = model_file.stem
-    print(f"Model loaded successfully: {model_name}")
+    logger.info(f"Model loaded successfully: {model_name}")
+    
+    # Update Prometheus metrics
+    model_loaded.set(1)
+    model_info_metric.info({
+        'model_name': model_name,
+        'model_type': type(model).__name__,
+        'model_path': str(model_path)
+    })
 
 
 @app.on_event("startup")
@@ -101,9 +229,11 @@ async def startup_event():
     """Load model on startup."""
     try:
         load_model()
+        logger.info("API startup complete - model loaded successfully")
     except Exception as e:
-        print(f"Warning: Could not load model on startup: {e}")
-        print("Model will need to be loaded manually or predictions will fail.")
+        logger.warning(f"Could not load model on startup: {e}")
+        logger.warning("Model will need to be loaded manually or predictions will fail.")
+        error_count.labels(error_type="ModelLoadError", endpoint="/startup").inc()
 
 
 @app.get("/")
@@ -118,7 +248,8 @@ async def root():
             "/predict": "POST - Single prediction",
             "/predict/batch": "POST - Batch predictions",
             "/health": "GET - Health check",
-            "/model/info": "GET - Model information"
+            "/model/info": "GET - Model information",
+            "/metrics": "GET - Prometheus metrics"
         }
     }
 
@@ -149,6 +280,12 @@ async def model_info():
     }
 
 
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(patient: PatientData):
     """
@@ -157,7 +294,12 @@ async def predict(patient: PatientData):
     Returns prediction (0 or 1) and confidence score.
     """
     if model is None:
+        logger.error("Prediction attempted with no model loaded")
+        error_count.labels(error_type="ModelNotLoaded", endpoint="/predict").inc()
         raise HTTPException(status_code=503, detail="Model not loaded")
+    
+    # Track prediction latency
+    start_time = time.time()
     
     try:
         # Convert input to DataFrame
@@ -178,6 +320,17 @@ async def predict(patient: PatientData):
             else:
                 confidence = 1.0  # Default if no confidence available
         
+        # Record prediction metrics
+        prediction_result = "disease" if prediction == 1 else "no_disease"
+        prediction_count.labels(prediction_result=prediction_result, model_name=model_name).inc()
+        confidence_scores.labels(prediction_result=prediction_result).observe(confidence)
+        
+        # Record latency
+        duration = time.time() - start_time
+        prediction_latency.labels(endpoint="/predict").observe(duration)
+        
+        logger.info(f"Prediction made: {prediction_result}, confidence: {confidence:.3f}, duration: {duration:.3f}s")
+        
         return PredictionResponse(
             prediction=int(prediction),
             confidence=confidence,
@@ -185,6 +338,10 @@ async def predict(patient: PatientData):
         )
     
     except Exception as e:
+        duration = time.time() - start_time
+        prediction_latency.labels(endpoint="/predict").observe(duration)
+        error_count.labels(error_type=type(e).__name__, endpoint="/predict").inc()
+        logger.error(f"Prediction error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 
@@ -196,7 +353,13 @@ async def predict_batch(batch: BatchPatientData):
     Returns predictions and confidence scores for all patients.
     """
     if model is None:
+        logger.error("Batch prediction attempted with no model loaded")
+        error_count.labels(error_type="ModelNotLoaded", endpoint="/predict/batch").inc()
         raise HTTPException(status_code=503, detail="Model not loaded")
+    
+    # Track prediction latency
+    start_time = time.time()
+    batch_size = len(batch.patients)
     
     try:
         predictions = []
@@ -219,6 +382,11 @@ async def predict_batch(batch: BatchPatientData):
                 else:
                     confidence = 1.0
             
+            # Record metrics for each prediction
+            prediction_result = "disease" if prediction == 1 else "no_disease"
+            prediction_count.labels(prediction_result=prediction_result, model_name=model_name).inc()
+            confidence_scores.labels(prediction_result=prediction_result).observe(confidence)
+            
             predictions.append(
                 PredictionResponse(
                     prediction=int(prediction),
@@ -227,12 +395,22 @@ async def predict_batch(batch: BatchPatientData):
                 )
             )
         
+        # Record batch latency
+        duration = time.time() - start_time
+        prediction_latency.labels(endpoint="/predict/batch").observe(duration)
+        
+        logger.info(f"Batch prediction complete: {batch_size} patients, duration: {duration:.3f}s")
+        
         return BatchPredictionResponse(
             predictions=predictions,
             count=len(predictions)
         )
     
     except Exception as e:
+        duration = time.time() - start_time
+        prediction_latency.labels(endpoint="/predict/batch").observe(duration)
+        error_count.labels(error_type=type(e).__name__, endpoint="/predict/batch").inc()
+        logger.error(f"Batch prediction error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Batch prediction error: {str(e)}")
 
 
