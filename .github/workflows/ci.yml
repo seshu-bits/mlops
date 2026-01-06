@@ -49,7 +49,9 @@ jobs:
       # and are excluded from CI/CD. Run them manually when needed.
       - name: Run unit tests with pytest
         run: |
-          cd Assignment && python -m pytest tests/ -vv \
+          cd Assignment
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+          python -m pytest tests/ -vv \
             --ignore=integration_tests \
             --html=test-report.html \
             --self-contained-html \
