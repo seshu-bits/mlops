@@ -4,6 +4,12 @@
 
 This directory contains integration tests that require external services to be running.
 
+## Important Note
+
+**These tests are excluded from regular pytest runs** because they require a live API server.
+
+The main `pytest.ini` excludes this directory to prevent CI/CD failures.
+
 ## API Integration Tests
 
 The `test_api.py` script tests the FastAPI server endpoints.
@@ -24,18 +30,31 @@ docker run -d -p 8000:8000 --name heart-api heart-disease-api:latest
 **Option 2: Running Locally**
 ```bash
 cd Assignment
-pip install fastapi uvicorn[standard]
+pip install -r requirements.txt
 uvicorn api_server:app --host 0.0.0.0 --port 8000
+```
+
+**Option 3: On Kubernetes/Minikube**
+```bash
+# Port forward to localhost
+kubectl port-forward -n mlops service/heart-disease-api 8000:80
 ```
 
 ### Running the Integration Tests
 
-Once the server is running:
-
+**Method 1: As a Python Script (Recommended)**
 ```bash
 cd Assignment
 python integration_tests/test_api.py
 ```
+
+**Method 2: Using pytest (with server running)**
+```bash
+cd Assignment
+pytest integration_tests/ -v
+```
+
+If the server is not running, pytest will automatically skip all tests with a clear message.
 
 ### Expected Output
 
