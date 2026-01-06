@@ -19,12 +19,8 @@ RUN apt-get update && \
 # Copy requirements file
 COPY requirements.txt .
 
-# Install Python dependencies for API
-RUN pip install --no-cache-dir \
-    fastapi==0.104.1 \
-    uvicorn[standard]==0.24.0 \
-    pydantic==2.5.0 \
-    && pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY api_server.py .
