@@ -64,7 +64,9 @@ service:
   # Container target port (must match the container's exposed port)
   targetPort: 8000
   # NodePort (only used when service.type is NodePort)
-  # If not specified, Kubernetes will auto-assign a port in range 30000-32767
+  # FIXED PORT: 30080 - This port is fixed to ensure consistent access across deployments
+  # The application will always be accessible on this port
+  # Access via: http://<node-ip>:30080
   nodePort: 30080
 
 ingress:
