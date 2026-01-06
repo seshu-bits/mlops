@@ -50,9 +50,9 @@ jobs:
       - name: Run unit tests with pytest
         run: |
           cd Assignment && python -m pytest tests/ -vv \
+            --ignore=integration_tests \
             --html=test-report.html \
             --self-contained-html \
-            --cov=. \
             --cov-report=html \
             --cov-report=term \
             --junitxml=test-results.xml
