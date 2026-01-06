@@ -45,6 +45,12 @@ cd ..
 ./setup-nginx-proxy.sh
 ```
 
+> **⚠️ Docker Build Issues?** If you encounter "local-python-base:3.11 not found" error:
+> ```bash
+> ./quick-fix-base-image.sh  # Automatically pulls required base image
+> ```
+> See [DOCKER_BUILD_TROUBLESHOOTING.md](DOCKER_BUILD_TROUBLESHOOTING.md) for detailed solutions.
+
 **Access URLs:**
 - **API**: http://\<server-ip\>/health
 - **API Docs**: http://\<server-ip\>/docs

@@ -70,14 +70,33 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 cd "$PROJECT_ROOT"
 
-# Use Minikube's Docker daemon
-echo "Configuring Docker to use Minikube..."
-eval $(minikube docker-env)
+# Use the smart build script
+if [ -f "./smart-docker-build.sh" ]; then
+    echo "Using smart Docker build script..."
+    if ! ./smart-docker-build.sh; then
+        echo "❌ Docker build failed. Please follow the instructions above."
+        exit 1
+    fi
+else
+    echo "⚠ smart-docker-build.sh not found, using fallback method..."
 
-# Build Docker image
-echo "Building Docker image..."
-docker build -t heart-disease-api:latest .
-echo "✓ Docker image built"
+    # Use Minikube's Docker daemon
+    eval $(minikube docker-env)
+
+    # Try to build with available Dockerfiles
+    if docker build -t heart-disease-api:latest -f Dockerfile.offline . 2>/dev/null; then
+        echo "✓ Built with Dockerfile.offline"
+    elif docker build -t heart-disease-api:latest -f Dockerfile.almalinux . 2>/dev/null; then
+        echo "✓ Built with Dockerfile.almalinux"
+    elif docker build -t heart-disease-api:latest . 2>/dev/null; then
+        echo "✓ Built with standard Dockerfile"
+    else
+        echo "❌ All build attempts failed. Please load a base image:"
+        echo "   Option 1: docker pull python:3.11-slim"
+        echo "   Option 2: docker pull almalinux:8"
+        exit 1
+    fi
+fi
 
 echo ""
 
