@@ -4,6 +4,7 @@ These tests mock the model and scaler to test API endpoints without
 requiring actual trained models.
 """
 
+from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 # conftest.py sets TESTING=1 before this import
@@ -271,21 +272,22 @@ def test_model_loading_missing_scaler():
     """Test model loading when scaler file is missing."""
     mock_model_data = b"mock_model_data"
 
-    def side_effect_exists(self):
+    def side_effect_exists(path_obj):
         # Model file exists, scaler doesn't
-        # 'self' is the Path object being checked
-        if "scaler" in str(self):
+        if "scaler" in str(path_obj):
             return False
         return True
 
+    # Mock Path.exists as a property that returns our function
     with patch("builtins.open", mock_open(read_data=mock_model_data)), patch(
         "pickle.load", return_value=Mock()
-    ), patch("pathlib.Path.exists", side_effect=side_effect_exists):
+    ):
+        # Patch at the Path instance level
+        with patch.object(Path, "exists", side_effect_exists):
+            from api_server import load_model
 
-        from api_server import load_model
-
-        # Should not raise exception, just log warning
-        load_model("test_model.pkl")
+            # Should not raise exception, just log warning
+            load_model("test_model.pkl")
 
 
 def test_predict_model_without_predict_proba(client):
