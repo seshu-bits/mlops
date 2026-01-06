@@ -961,6 +961,7 @@ def save_final_model(
     model,
     model_name: str,
     output_dir: str | Path = "artifacts",
+    scaler=None,
     save_pickle: bool = True,
     save_mlflow: bool = True,
     save_onnx: bool = False,
@@ -970,6 +971,17 @@ def save_final_model(
 
     - Always supports local pickle and MLflow model logging (if an MLflow run is active)
     - Optionally supports ONNX export if ``skl2onnx`` is installed and ``X_sample`` is provided
+    - Saves preprocessing scaler alongside model for full reproducibility
+    
+    Args:
+        model: Trained model to save
+        model_name: Name for the saved model
+        output_dir: Directory to save artifacts
+        scaler: StandardScaler or preprocessing transformer to save (for reproducibility)
+        save_pickle: Whether to save pickle format
+        save_mlflow: Whether to log to MLflow
+        save_onnx: Whether to export ONNX format
+        X_sample: Sample data for ONNX export
     """
 
     import pickle
@@ -985,7 +997,14 @@ def save_final_model(
         with open(pkl_path, "wb") as f:
             pickle.dump(model, f)
 
-    # 2. MLflow model (if run is active)
+    # 2. Save scaler/preprocessor for reproducibility (CRITICAL for correct predictions)
+    if scaler is not None and save_pickle:
+        scaler_path = output_dir / f"{safe_name}_scaler.pkl"
+        with open(scaler_path, "wb") as f:
+            pickle.dump(scaler, f)
+        print(f"Saved scaler to: {scaler_path}")
+
+    # 3. MLflow model (if run is active)
     if save_mlflow:
         try:
             mlflow.sklearn.log_model(model, artifact_path=f"{safe_name}_mlflow_model")
@@ -993,7 +1012,7 @@ def save_final_model(
             # In tests we don't want this to crash if MLflow isn't fully configured
             pass
 
-    # 3. Optional ONNX export
+    # 4. Optional ONNX export
     if save_onnx:
         try:
             if X_sample is None:

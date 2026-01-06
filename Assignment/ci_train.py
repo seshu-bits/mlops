@@ -267,6 +267,7 @@ def main():
                     best_model,
                     model_name=f"{model_name} CI",
                     output_dir="artifacts_ci",
+                    scaler=scaler,  # Pass scaler for reproducibility
                     save_pickle=True,
                     save_mlflow=True,
                     save_onnx=False,

@@ -143,6 +143,7 @@ app.add_middleware(PrometheusMiddleware)
 # Global variable to store the loaded model
 model = None
 model_name = None
+scaler = None  # Preprocessing scaler for reproducibility
 
 
 class PatientData(BaseModel):
@@ -201,7 +202,7 @@ class BatchPredictionResponse(BaseModel):
 
 def load_model(model_path: str = "artifacts/logistic_regression.pkl"):
     """Load the trained model from disk."""
-    global model, model_name
+    global model, model_name, scaler
     
     model_file = Path(model_path)
     if not model_file.exists():
@@ -214,6 +215,16 @@ def load_model(model_path: str = "artifacts/logistic_regression.pkl"):
     
     model_name = model_file.stem
     logger.info(f"Model loaded successfully: {model_name}")
+    
+    # Load preprocessing scaler for reproducibility
+    scaler_path = model_file.parent / f"{model_file.stem}_scaler.pkl"
+    if scaler_path.exists():
+        with open(scaler_path, "rb") as f:
+            scaler = pickle.load(f)
+        logger.info(f"Scaler loaded successfully: {scaler_path.name}")
+    else:
+        logger.warning(f"No scaler found at {scaler_path} - predictions may be incorrect without preprocessing!")
+        scaler = None
     
     # Update Prometheus metrics
     model_loaded.set(1)
@@ -305,6 +316,12 @@ async def predict(patient: PatientData):
         # Convert input to DataFrame
         input_data = pd.DataFrame([patient.dict()])
         
+        # Apply preprocessing for reproducibility (CRITICAL for correct predictions)
+        if scaler is not None:
+            numeric_cols = input_data.select_dtypes(include=['int64', 'float64', 'Int64', 'Float64']).columns
+            if len(numeric_cols) > 0:
+                input_data[numeric_cols] = scaler.transform(input_data[numeric_cols])
+        
         # Make prediction
         prediction = model.predict(input_data)[0]
         
@@ -367,6 +384,12 @@ async def predict_batch(batch: BatchPatientData):
         for patient in batch.patients:
             # Convert input to DataFrame
             input_data = pd.DataFrame([patient.dict()])
+            
+            # Apply preprocessing for reproducibility (CRITICAL for correct predictions)
+            if scaler is not None:
+                numeric_cols = input_data.select_dtypes(include=['int64', 'float64', 'Int64', 'Float64']).columns
+                if len(numeric_cols) > 0:
+                    input_data[numeric_cols] = scaler.transform(input_data[numeric_cols])
             
             # Make prediction
             prediction = model.predict(input_data)[0]

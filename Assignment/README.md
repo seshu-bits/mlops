@@ -371,6 +371,177 @@ print(importance_df.head(10))
 
 ---
 
+## 📦 Model Packaging & Reproducibility
+
+### Ensuring Full Reproducibility
+
+This project implements **complete reproducibility** by saving not just the trained model, but the entire preprocessing pipeline required for inference.
+
+#### **What Gets Saved**
+
+For each trained model, we save:
+
+1. **📊 Trained Model** (`model_name.pkl`)
+   - Serialized scikit-learn model
+   - Ready for immediate inference
+
+2. **🔧 Preprocessing Scaler** (`model_name_scaler.pkl`)
+   - StandardScaler fitted on training data
+   - **CRITICAL**: Must be applied to all new inputs
+   - Contains mean/std for each feature
+
+3. **📁 MLflow Artifacts** (`mlruns/`)
+   - Model metadata and parameters
+   - Training metrics and plots
+   - Experiment tracking
+
+4. **🔬 ONNX Export** (Optional)
+   - Cross-platform model format
+   - For production deployment
+
+#### **Why Preprocessing Matters**
+
+**❌ WITHOUT PREPROCESSING (INCORRECT)**:
+```python
+# BAD: Direct prediction on raw data
+prediction = model.predict(raw_patient_data)  # ❌ WRONG!
+# Result: Incorrect predictions, degraded accuracy
+```
+
+**✅ WITH PREPROCESSING (CORRECT)**:
+```python
+# GOOD: Apply same preprocessing as training
+scaler = pickle.load(open("logistic_regression_scaler.pkl", "rb"))
+scaled_data = scaler.transform(raw_patient_data)
+prediction = model.predict(scaled_data)  # ✅ CORRECT!
+# Result: Accurate predictions matching training performance
+```
+
+#### **How It Works**
+
+**During Training** (`ci_train.py`):
+```python
+# 1. Prepare features and create scaler
+X, y, scaler = prepare_ml_features(cleaned_df)
+# scaler is fitted on training data
+
+# 2. Train model on scaled features
+model.fit(X_train, y_train)
+
+# 3. Save BOTH model and scaler
+save_final_model(
+    model,
+    model_name="Logistic Regression",
+    output_dir="artifacts",
+    scaler=scaler,  # ⭐ Save preprocessing pipeline
+    save_pickle=True
+)
+# Creates:
+# - artifacts/logistic_regression.pkl
+# - artifacts/logistic_regression_scaler.pkl
+```
+
+**During Inference** (`api_server.py`):
+```python
+# 1. Load both model and scaler
+model = pickle.load(open("logistic_regression.pkl", "rb"))
+scaler = pickle.load(open("logistic_regression_scaler.pkl", "rb"))
+
+# 2. Apply preprocessing before prediction
+input_data = pd.DataFrame([patient.dict()])
+numeric_cols = input_data.select_dtypes(include=['int64', 'float64']).columns
+input_data[numeric_cols] = scaler.transform(input_data[numeric_cols])
+
+# 3. Make prediction
+prediction = model.predict(input_data)
+```
+
+#### **Artifacts Directory Structure**
+
+```
+artifacts/
+├── logistic_regression.pkl          # Trained model
+├── logistic_regression_scaler.pkl   # ⭐ Preprocessing scaler
+├── random_forest.pkl
+├── random_forest_scaler.pkl         # ⭐ Preprocessing scaler
+├── decision_tree.pkl
+└── decision_tree_scaler.pkl         # ⭐ Preprocessing scaler
+```
+
+#### **Generating Scaler Files**
+
+If you have existing models without scalers, regenerate them:
+
+```bash
+cd Assignment
+python3 generate_scalers.py
+```
+
+This script:
+1. Loads the original training data
+2. Recreates the preprocessing pipeline
+3. Saves scaler files for all existing models
+
+#### **Preprocessing Steps**
+
+The `prepare_ml_features()` function applies:
+
+1. **Feature Scaling**: StandardScaler
+   - Normalizes numeric features to mean=0, std=1
+   - Ensures consistent feature magnitude
+   - Critical for distance-based algorithms
+
+2. **One-Hot Encoding**: pd.get_dummies
+   - Converts categorical features to binary columns
+   - Applied automatically during preprocessing
+
+3. **Feature Alignment**:
+   - Ensures test data has same features as training
+   - Handles missing columns gracefully
+
+#### **Deployment Checklist**
+
+✅ **Model Packaging**:
+- [x] Model saved in pickle format
+- [x] Scaler saved alongside model
+- [x] MLflow artifacts logged
+- [x] ONNX export (optional)
+
+✅ **Inference Pipeline**:
+- [x] API loads both model + scaler
+- [x] Preprocessing applied before prediction
+- [x] Feature alignment verified
+- [x] Error handling for missing scalers
+
+✅ **Docker/Kubernetes**:
+- [x] Dockerfile copies artifacts/ directory
+- [x] Container includes scaler files
+- [x] Health checks verify model loading
+
+#### **Reproducibility Best Practices**
+
+1. **Always Save Preprocessing Artifacts**
+   - Scalers, encoders, feature selectors
+   - Any transformation applied during training
+
+2. **Version Your Data**
+   - Log data checksums in MLflow
+   - Track data version/date
+
+3. **Pin Dependencies**
+   - Use exact versions in requirements.txt
+   - Current: `scikit-learn==1.3.0`
+
+4. **Document Feature Engineering**
+   - Keep preprocessing code modular
+   - Test preprocessing pipeline separately
+
+5. **Validate Predictions**
+   - Test API predictions match training metrics
+   - Monitor prediction distribution in production
+
+---
+
 ### Training Pipeline
 
 **Complete Training Workflow**:
