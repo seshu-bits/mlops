@@ -2,20 +2,17 @@
 # Use this file for local development and model training
 # Install with: pip install -r requirements-dev.txt
 
-# Include all API runtime dependencies
+# Include all API runtime dependencies (including mlflow)
 -r requirements.txt
 
-# Visualization
+# Visualization (for training and analysis)
 matplotlib>=3.6.0
 seaborn>=0.12.0
-
-# MLOps and experiment tracking
-mlflow>=2.8.0
 
 # Testing
 pytest>=7.4.0
 
-# Jupyter notebooks
+# Jupyter notebooks (for development)
 jupyter>=1.0.0
 
 # Optional: ONNX export
