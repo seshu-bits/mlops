@@ -19,6 +19,9 @@ sys.path.insert(0, str(project_root))
 
 from fastapi.testclient import TestClient
 
+# Import api_server at module level but we'll reload it in fixtures
+import api_server
+
 
 @pytest.fixture
 def mock_model():
@@ -42,12 +45,10 @@ def mock_scaler():
 @pytest.fixture
 def client(mock_model, mock_scaler):
     """Create a test client with mocked model."""
-    with patch("api_server.model", mock_model), patch("api_server.scaler", mock_scaler), patch(
-        "api_server.model_name", "test_model"
-    ):
-        from api_server import app
-
-        return TestClient(app)
+    with patch.object(api_server, "model", mock_model), \
+         patch.object(api_server, "scaler", mock_scaler), \
+         patch.object(api_server, "model_name", "test_model"):
+        return TestClient(api_server.app)
 
 
 def test_root_endpoint(client):
