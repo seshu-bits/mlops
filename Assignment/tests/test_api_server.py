@@ -1,5 +1,4 @@
-"""
-Unit tests for api_server.py
+"""Unit tests for api_server.py.
 
 These tests mock the model and scaler to test API endpoints without
 requiring actual trained models.
@@ -7,13 +6,11 @@ requiring actual trained models.
 
 from unittest.mock import Mock, mock_open, patch
 
-import numpy as np
-import pandas as pd
-import pytest
-from fastapi.testclient import TestClient
-
 # conftest.py sets TESTING=1 before this import
 import api_server
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -42,7 +39,7 @@ def client(mock_model, mock_scaler):
     api_server.model = mock_model
     api_server.scaler = mock_scaler
     api_server.model_name = "test_model"
-    
+
     return TestClient(api_server.app)
 
 
@@ -250,7 +247,6 @@ def test_batch_predict_empty_list(client):
 def test_model_loading():
     """Test model loading function."""
     mock_model_data = b"mock_model_data"
-    mock_scaler_data = b"mock_scaler_data"
 
     with patch("builtins.open", mock_open(read_data=mock_model_data)), patch(
         "pickle.load", side_effect=[Mock(), Mock()]
@@ -275,9 +271,10 @@ def test_model_loading_missing_scaler():
     """Test model loading when scaler file is missing."""
     mock_model_data = b"mock_model_data"
 
-    def side_effect_exists(path):
+    def side_effect_exists(self):
         # Model file exists, scaler doesn't
-        if "scaler" in str(path):
+        # 'self' is the Path object being checked
+        if "scaler" in str(self):
             return False
         return True
 
