@@ -5,6 +5,7 @@ These tests mock the model and scaler to test API endpoints without
 requiring actual trained models.
 """
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
@@ -17,9 +18,12 @@ import pytest
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# Set environment variable to disable model loading during tests
+os.environ["TESTING"] = "1"
+
 from fastapi.testclient import TestClient
 
-# Import api_server at module level but we'll reload it in fixtures
+# Now we can safely import api_server
 import api_server
 
 
@@ -45,10 +49,12 @@ def mock_scaler():
 @pytest.fixture
 def client(mock_model, mock_scaler):
     """Create a test client with mocked model."""
-    with patch.object(api_server, "model", mock_model), \
-         patch.object(api_server, "scaler", mock_scaler), \
-         patch.object(api_server, "model_name", "test_model"):
-        return TestClient(api_server.app)
+    # Set the mock model and scaler directly on the api_server module
+    api_server.model = mock_model
+    api_server.scaler = mock_scaler
+    api_server.model_name = "test_model"
+    
+    return TestClient(api_server.app)
 
 
 def test_root_endpoint(client):

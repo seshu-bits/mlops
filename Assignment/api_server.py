@@ -244,6 +244,12 @@ def load_model(model_path: str = "artifacts/logistic_regression.pkl"):
 @app.on_event("startup")
 async def startup_event():
     """Load model on startup."""
+    # Skip model loading during tests
+    import os
+    if os.environ.get("TESTING") == "1":
+        logger.info("TESTING mode - skipping model loading")
+        return
+    
     try:
         load_model()
         logger.info("API startup complete - model loaded successfully")
