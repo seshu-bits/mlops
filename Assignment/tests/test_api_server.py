@@ -5,25 +5,14 @@ These tests mock the model and scaler to test API endpoints without
 requiring actual trained models.
 """
 
-import os
-import sys
-from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 import numpy as np
 import pandas as pd
 import pytest
-
-# Add parent directory to path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-# Set environment variable to disable model loading during tests
-os.environ["TESTING"] = "1"
-
 from fastapi.testclient import TestClient
 
-# Now we can safely import api_server
+# conftest.py sets TESTING=1 before this import
 import api_server
 
 
