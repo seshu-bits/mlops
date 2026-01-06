@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: mlops
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'minikube'
+        namespace: 'mlops'
+
+    # Alertmanager configuration (optional)
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: []
+
+    # Load rules once and periodically evaluate them
+    rule_files:
+      # - "alerts.yml"
+
+    # Scrape configurations
+    scrape_configs:
+      # Prometheus itself
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      # Heart Disease API
+      - job_name: 'heart-disease-api'
+        metrics_path: '/metrics'
+        scrape_interval: 10s
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - mlops
+        relabel_configs:
+          # Only scrape pods with the correct service
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: heart-disease-api
+          # Add pod name as label
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          # Add namespace as label
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          # Add container name as label
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+
+      # Alternative: Static configuration if Kubernetes SD doesn't work
+      - job_name: 'heart-disease-api-static'
+        metrics_path: '/metrics'
+        scrape_interval: 10s
+        static_configs:
+          - targets: ['heart-disease-api:80']
+            labels:
+              service: 'heart-disease-api'
+              namespace: 'mlops'
