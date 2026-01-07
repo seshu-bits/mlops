@@ -30,15 +30,15 @@ test_endpoint() {
     local name=$1
     local url=$2
     local host_header=$3
-    
+
     echo -ne "Testing $name... "
-    
+
     if [ -n "$host_header" ]; then
         response=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: $host_header" "$url" --max-time 10)
     else
         response=$(curl -s -o /dev/null -w "%{http_code}" "$url" --max-time 10)
     fi
-    
+
     if [ "$response" = "200" ] || [ "$response" = "302" ]; then
         echo -e "${GREEN}✓ PASS${NC} (HTTP $response)"
         ((test_passed++))
@@ -114,7 +114,7 @@ fi
 # Test local endpoints (Minikube IP)
 if [ -n "$MINIKUBE_IP" ]; then
     echo -e "\n${YELLOW}Testing Local Endpoints (Minikube IP: $MINIKUBE_IP)...${NC}\n"
-    
+
     test_endpoint "API Health" "http://$MINIKUBE_IP/health" "api.mlops.local"
     test_endpoint "API Docs" "http://$MINIKUBE_IP/docs" "api.mlops.local"
     test_endpoint "API Metrics" "http://$MINIKUBE_IP/metrics" "api.mlops.local"
@@ -197,7 +197,7 @@ metrics=$(curl -s "http://$SERVER_IP/metrics" --max-time 10)
 if echo "$metrics" | grep -q "api_requests_total"; then
     echo -e "${GREEN}✓ Metrics available${NC}"
     ((test_passed++))
-    
+
     # Show some key metrics
     echo ""
     echo "Sample metrics:"

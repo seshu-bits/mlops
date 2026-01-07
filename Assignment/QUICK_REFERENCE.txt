@@ -179,7 +179,7 @@
   rate(api_requests_total[5m])
 
   # Average latency
-  rate(prediction_duration_seconds_sum[5m]) / 
+  rate(prediction_duration_seconds_sum[5m]) /
     rate(prediction_duration_seconds_count[5m])
 
   # Error rate

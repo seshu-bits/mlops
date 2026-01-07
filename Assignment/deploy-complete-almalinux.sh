@@ -48,7 +48,7 @@ wait_for_pods() {
     local label=$1
     local namespace=$2
     local timeout=${3:-120}
-    
+
     echo "Waiting for pods with label $label in namespace $namespace..."
     kubectl wait --for=condition=ready pod -l $label -n $namespace --timeout=${timeout}s
     echo -e "${GREEN}✓ Pods ready${NC}"
