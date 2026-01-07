@@ -325,28 +325,28 @@ spec:
   - http:
       paths:
       - path: /api(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: heart-disease-api
             port:
               number: 80
       - path: /prometheus(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: prometheus
             port:
               number: 9090
       - path: /grafana(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: grafana
             port:
               number: 3000
       - path: /mlflow(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: mlflow

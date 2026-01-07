@@ -399,7 +399,7 @@ spec:
       paths:
       # API: http://<IP>/api/
       - path: /api(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: heart-disease-api
@@ -407,7 +407,7 @@ spec:
               number: 80
       # Prometheus: http://<IP>/prometheus/
       - path: /prometheus(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: prometheus
@@ -415,7 +415,7 @@ spec:
               number: 9090
       # Grafana: http://<IP>/grafana/
       - path: /grafana(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: grafana
@@ -423,7 +423,7 @@ spec:
               number: 3000
       # MLflow: http://<IP>/mlflow/
       - path: /mlflow(/|$)(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: mlflow
