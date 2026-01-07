@@ -3,6 +3,13 @@
 Complete MLOps implementation with FastAPI, Kubernetes deployment, Prometheus monitoring, and Grafana visualization.
 
 ---
+## Group No 39
+## Team Members
+1. Akilan K. S. L., 2024AB05003
+2. Nagendra Prasad Reddy K. V. S., 2024aa05960
+3. Piramanayagam P., 2024AB05015
+4. Prathyusha Devi K., 2024aa05182
+5. Sai Venkata Naga Sesh Kumar Ghanta., 2024aa05989
 
 ## 📋 Table of Contents
 
