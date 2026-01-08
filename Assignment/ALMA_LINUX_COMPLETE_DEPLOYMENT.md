@@ -306,10 +306,10 @@ kubectl get svc -n mlops -l app=mlflow
 ```bash
 cd ~/mlops/Assignment/helm-charts
 
-# Install/Upgrade API with Helm
+# Install/Upgrade API with Helm (ingress disabled - we'll create a unified ingress later)
 helm upgrade --install heart-disease-api ./heart-disease-api \
   --namespace mlops \
-  --set ingress.enabled=true \
+  --set ingress.enabled=false \
   --set image.repository=heart-disease-api \
   --set image.tag=latest \
   --set image.pullPolicy=Never \

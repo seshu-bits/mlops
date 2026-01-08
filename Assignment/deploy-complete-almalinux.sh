@@ -242,7 +242,7 @@ cd helm-charts
 
 helm upgrade --install heart-disease-api ./heart-disease-api \
   --namespace mlops \
-  --set ingress.enabled=true \
+  --set ingress.enabled=false \
   --set image.repository=heart-disease-api \
   --set image.tag=latest \
   --set image.pullPolicy=Never \
