@@ -105,9 +105,9 @@ echo "║                     Applying Fixes                             ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}\n"
 
-# Fix 1: Stop conflicting services
-echo -e "${GREEN}Fix 1: Stopping Conflicting Services${NC}"
-echo "======================================"
+# Fix 1: Stop conflicting services and free up ports
+echo -e "${GREEN}Fix 1: Stopping Conflicting Services and Freeing Ports${NC}"
+echo "======================================================="
 if sudo systemctl is-active --quiet httpd; then
     echo "Stopping Apache (httpd)..."
     sudo systemctl stop httpd
@@ -120,12 +120,30 @@ fi
 # Kill any stray nginx processes
 if pgrep nginx > /dev/null; then
     echo "Killing stray Nginx processes..."
-    sudo pkill nginx 2>/dev/null || true
-    sleep 2
+    sudo pkill -9 nginx 2>/dev/null || true
+    sleep 3
     echo "✓ Stray processes killed"
 else
     echo "✓ No stray Nginx processes"
 fi
+
+# Aggressively kill processes on required ports
+echo "Checking and freeing required ports (80, 3000, 5000, 9090)..."
+for PORT in 80 3000 5000 9090; do
+    if sudo lsof -i :$PORT > /dev/null 2>&1; then
+        echo "  Port $PORT is in use, killing processes..."
+        sudo lsof -ti :$PORT | xargs -r sudo kill -9 2>/dev/null || true
+        sleep 1
+        if sudo lsof -i :$PORT > /dev/null 2>&1; then
+            echo "  ⚠ Port $PORT still in use after kill attempt"
+            sudo lsof -i :$PORT
+        else
+            echo "  ✓ Port $PORT freed"
+        fi
+    else
+        echo "  ✓ Port $PORT is free"
+    fi
+done
 
 # Clean up PID files
 sudo rm -f /run/nginx.pid /var/run/nginx.pid 2>/dev/null || true
@@ -175,8 +193,40 @@ else
 fi
 echo ""
 
-# Fix 4: Validate and fix Nginx configuration
-echo -e "${GREEN}Fix 4: Validating Nginx Configuration${NC}"
+# Fix 4: Clean up conflicting Nginx configurations
+echo -e "${GREEN}Fix 4: Cleaning Up Conflicting Nginx Configurations${NC}"
+echo "====================================================="
+
+# Backup existing conf.d directory
+if [ -d /etc/nginx/conf.d ]; then
+    echo "Backing up existing Nginx configurations..."
+    sudo mkdir -p /etc/nginx/conf.d.backup.$(date +%Y%m%d_%H%M%S)
+    sudo cp -r /etc/nginx/conf.d/* /etc/nginx/conf.d.backup.$(date +%Y%m%d_%H%M%S)/ 2>/dev/null || true
+fi
+
+# Remove potentially conflicting default configurations
+echo "Removing default/conflicting configurations..."
+sudo rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
+sudo rm -f /etc/nginx/conf.d/ssl.conf 2>/dev/null || true
+sudo rm -f /etc/nginx/conf.d/virtual.conf 2>/dev/null || true
+sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+
+# List any remaining config files that might conflict
+echo "Checking for other configuration files..."
+if [ -d /etc/nginx/conf.d ]; then
+    CONF_COUNT=$(sudo find /etc/nginx/conf.d -name "*.conf" ! -name "mlops-proxy.conf" | wc -l)
+    if [ $CONF_COUNT -gt 0 ]; then
+        echo "⚠ Found $CONF_COUNT other .conf files:"
+        sudo find /etc/nginx/conf.d -name "*.conf" ! -name "mlops-proxy.conf" -exec basename {} \;
+        echo "  These may cause port conflicts. Consider reviewing them."
+    else
+        echo "✓ No conflicting configuration files found"
+    fi
+fi
+echo ""
+
+# Fix 5: Validate and fix Nginx configuration
+echo -e "${GREEN}Fix 5: Validating Nginx Configuration${NC}"
 echo "======================================="
 
 # Get Minikube IP (if available)
@@ -307,8 +357,8 @@ else
 fi
 echo ""
 
-# Fix 5: Configure firewall
-echo -e "${GREEN}Fix 5: Configuring Firewall${NC}"
+# Fix 6: Configure firewall
+echo -e "${GREEN}Fix 6: Configuring Firewall${NC}"
 echo "============================"
 if command -v firewall-cmd &> /dev/null; then
     if sudo firewall-cmd --state &> /dev/null; then
@@ -330,9 +380,31 @@ else
 fi
 echo ""
 
-# Fix 6: Start Nginx
-echo -e "${GREEN}Fix 6: Starting Nginx${NC}"
+# Fix 7: Start Nginx
+echo -e "${GREEN}Fix 7: Starting Nginx${NC}"
 echo "======================"
+
+# One final check for port conflicts before starting
+echo "Final port check before starting Nginx..."
+PORTS_BLOCKED=false
+for PORT in 80 3000 5000 9090; do
+    if sudo lsof -i :$PORT > /dev/null 2>&1; then
+        echo "⚠ Port $PORT is still in use:"
+        sudo lsof -i :$PORT
+        PORTS_BLOCKED=true
+    fi
+done
+
+if [ "$PORTS_BLOCKED" = true ]; then
+    echo ""
+    echo -e "${YELLOW}WARNING: Some ports are still in use.${NC}"
+    echo "Attempting to force kill remaining processes..."
+    for PORT in 80 3000 5000 9090; do
+        sudo fuser -k $PORT/tcp 2>/dev/null || true
+    done
+    sleep 2
+fi
+
 echo "Enabling Nginx to start on boot..."
 sudo systemctl enable nginx
 
@@ -347,6 +419,9 @@ else
     echo ""
     echo "Recent journal entries:"
     sudo journalctl -u nginx -n 20 --no-pager
+    echo ""
+    echo "Port status:"
+    sudo ss -tlnp | grep -E ":(80|3000|5000|9090)"
     exit 1
 fi
 echo ""

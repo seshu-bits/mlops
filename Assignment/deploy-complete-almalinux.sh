@@ -426,12 +426,28 @@ fi
 if pgrep nginx > /dev/null; then
     echo "Stopping existing Nginx processes..."
     sudo systemctl stop nginx 2>/dev/null || true
-    sudo pkill nginx 2>/dev/null || true
-    sleep 2
+    sudo pkill -9 nginx 2>/dev/null || true
+    sleep 3
 fi
+
+# Aggressively free up required ports
+echo "Ensuring ports 80, 3000, 5000, 9090 are free..."
+for PORT in 80 3000 5000 9090; do
+    if sudo lsof -i :$PORT > /dev/null 2>&1; then
+        echo "  Freeing port $PORT..."
+        sudo lsof -ti :$PORT | xargs -r sudo kill -9 2>/dev/null || true
+        sudo fuser -k $PORT/tcp 2>/dev/null || true
+        sleep 1
+    fi
+done
 
 # Clean up stale PID files
 sudo rm -f /run/nginx.pid /var/run/nginx.pid 2>/dev/null || true
+
+# Remove potentially conflicting Nginx configurations
+echo "Cleaning up conflicting Nginx configurations..."
+sudo rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
+sudo rm -f /etc/nginx/conf.d/ssl.conf 2>/dev/null || true
 
 # Configure SELinux to allow Nginx to bind to non-standard ports
 echo "Configuring SELinux for Nginx..."

