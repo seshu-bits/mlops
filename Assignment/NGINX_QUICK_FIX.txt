@@ -1,0 +1,152 @@
+╔════════════════════════════════════════════════════════════════╗
+║              NGINX STARTUP FAILURE - QUICK FIX                 ║
+╚════════════════════════════════════════════════════════════════╝
+
+ERROR SEEN:
+✗ Nginx failed to start
+Job for nginx.service failed because the control process exited with error code.
+
+═══════════════════════════════════════════════════════════════════
+
+🚀 IMMEDIATE SOLUTION:
+
+cd /Users/saghanta/Personal/Docs/Education/Seshu/BITS/Courses/SEM\ 3/MLOps/mlops/Assignment
+bash fix-nginx-startup.sh
+
+This script will:
+✓ Diagnose the exact problem
+✓ Fix port conflicts
+✓ Configure SELinux properly
+✓ Create missing directories
+✓ Fix configuration errors
+✓ Configure firewall
+✓ Start Nginx successfully
+
+═══════════════════════════════════════════════════════════════════
+
+📋 MOST COMMON CAUSES:
+
+1. PORT CONFLICTS (90% of cases)
+   - Apache (httpd) using port 80
+   - Stray nginx processes
+
+   Quick fix:
+   sudo systemctl stop httpd && sudo systemctl disable httpd
+   sudo pkill nginx
+
+2. SELINUX BLOCKING (80% of cases)
+   - Nginx can't bind to ports 3000, 5000, 9090
+
+   Quick fix:
+   sudo setsebool -P httpd_can_network_connect 1
+   sudo semanage port -a -t http_port_t -p tcp 3000
+   sudo semanage port -a -t http_port_t -p tcp 5000
+   sudo semanage port -a -t http_port_t -p tcp 9090
+
+3. MISSING DIRECTORIES (10% of cases)
+   Quick fix:
+   sudo mkdir -p /var/log/nginx /var/cache/nginx /var/lib/nginx/tmp
+   sudo chown -R nginx:nginx /var/log/nginx /var/cache/nginx
+
+═══════════════════════════════════════════════════════════════════
+
+🔍 DIAGNOSTIC COMMANDS:
+
+Check what's blocking:
+  sudo lsof -i :80,3000,5000,9090
+
+View actual error:
+  sudo journalctl -u nginx -n 20
+  sudo tail /var/log/nginx/error.log
+
+Test configuration:
+  sudo nginx -t
+
+Check SELinux denials:
+  sudo ausearch -m avc -ts recent | grep nginx
+
+═══════════════════════════════════════════════════════════════════
+
+⚡ MANUAL QUICK FIX (if script not available):
+
+# 1. Stop conflicting services
+sudo systemctl stop httpd nginx
+sudo pkill nginx
+sudo rm -f /run/nginx.pid
+
+# 2. Fix SELinux
+sudo dnf install -y policycoreutils-python-utils
+sudo setsebool -P httpd_can_network_connect 1
+for PORT in 3000 5000 9090; do
+  sudo semanage port -a -t http_port_t -p tcp $PORT 2>/dev/null || \
+  sudo semanage port -m -t http_port_t -p tcp $PORT
+done
+
+# 3. Create directories
+sudo mkdir -p /var/log/nginx /var/cache/nginx /var/lib/nginx/tmp
+sudo chown -R nginx:nginx /var/log/nginx /var/cache/nginx /var/lib/nginx
+
+# 4. Test and start
+sudo nginx -t
+sudo systemctl start nginx
+sudo systemctl status nginx
+
+═══════════════════════════════════════════════════════════════════
+
+📚 DETAILED DOCUMENTATION:
+
+See NGINX_TROUBLESHOOTING.md for:
+- Complete diagnostic procedures
+- Step-by-step manual fixes
+- Prevention strategies
+- Verification commands
+
+═══════════════════════════════════════════════════════════════════
+
+✅ VERIFICATION AFTER FIX:
+
+1. Check service:
+   sudo systemctl status nginx
+   Should show: active (running)
+
+2. Check ports:
+   sudo ss -tlnp | grep nginx
+   Should show: 80, 3000, 5000, 9090
+
+3. Test connectivity:
+   curl -I http://localhost
+   Should return: HTTP/1.1 200 OK (or other non-error)
+
+═══════════════════════════════════════════════════════════════════
+
+🆘 STILL NOT WORKING?
+
+1. Run diagnostics and save output:
+   bash fix-nginx-startup.sh > nginx-debug.log 2>&1
+
+2. Check the specific error in the log:
+   sudo journalctl -u nginx -n 50
+
+3. Verify Minikube is running:
+   minikube status
+   minikube ip
+
+4. Temporarily disable SELinux (troubleshooting only):
+   sudo setenforce 0
+   sudo systemctl start nginx
+   # If this works, it's definitely SELinux
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 EXPECTED ACCESS AFTER FIX:
+
+Server IP: 72.163.219.91
+
+Remote Access:
+  API:        http://72.163.219.91/
+  API Docs:   http://72.163.219.91/docs
+  Prometheus: http://72.163.219.91:9090
+  Grafana:    http://72.163.219.91:3000
+  MLflow:     http://72.163.219.91:5000
+
+═══════════════════════════════════════════════════════════════════

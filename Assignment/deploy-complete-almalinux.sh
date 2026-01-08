@@ -441,22 +441,42 @@ if command -v getenforce &> /dev/null && [ "$(getenforce)" != "Disabled" ]; then
         echo "Installing SELinux management tools..."
         sudo dnf install -y policycoreutils-python-utils
     fi
-    
+
+    # Enable network connections for httpd
+    echo "Enabling httpd_can_network_connect..."
+    sudo setsebool -P httpd_can_network_connect 1 2>/dev/null || true
+
     # Allow Nginx to bind to ports 3000, 5000, 9090
     echo "Adding SELinux permissions for ports 3000, 5000, 9090..."
-    sudo semanage port -a -t http_port_t -p tcp 9090 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 9090
-    sudo semanage port -a -t http_port_t -p tcp 3000 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 3000
-    sudo semanage port -a -t http_port_t -p tcp 5000 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 5000
+    for PORT in 3000 5000 9090; do
+        sudo semanage port -a -t http_port_t -p tcp $PORT 2>/dev/null || \
+        sudo semanage port -m -t http_port_t -p tcp $PORT 2>/dev/null || \
+        echo "  Port $PORT already configured"
+    done
+
+    # Restore file contexts
+    sudo restorecon -Rv /etc/nginx 2>/dev/null || true
+    sudo restorecon -Rv /var/log/nginx 2>/dev/null || true
+
     echo -e "${GREEN}✓ SELinux configured for Nginx${NC}"
 else
     echo "SELinux is disabled, skipping SELinux configuration"
 fi
 
+# Ensure required directories exist
+echo "Creating required directories..."
+sudo mkdir -p /var/log/nginx
+sudo mkdir -p /etc/nginx/conf.d
+sudo mkdir -p /var/cache/nginx
+sudo mkdir -p /var/lib/nginx/tmp
+sudo chown -R nginx:nginx /var/log/nginx /var/cache/nginx /var/lib/nginx 2>/dev/null || true
+echo -e "${GREEN}✓ Directories ready${NC}"
+
 # Backup and fix nginx.conf if it exists
 echo "Configuring Nginx..."
 if [ -f /etc/nginx/nginx.conf ]; then
     sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-    
+
     # Create a clean nginx.conf without server blocks
     sudo tee /etc/nginx/nginx.conf > /dev/null << 'NGINXCONF'
 user nginx;
@@ -555,19 +575,47 @@ EOF
 echo "Testing Nginx configuration..."
 if ! sudo nginx -t; then
     echo -e "${RED}✗ Nginx configuration test failed${NC}"
-    echo "Please check the configuration and try again"
+    echo "Configuration errors:"
+    sudo nginx -t 2>&1 | tail -n 10
+    echo ""
+    echo -e "${YELLOW}Run the fix script: bash fix-nginx-startup.sh${NC}"
     exit 1
 fi
 
 echo "Restarting Nginx..."
 if ! sudo systemctl restart nginx; then
     echo -e "${RED}✗ Nginx failed to start${NC}"
+    echo ""
     echo "Checking for port conflicts..."
-    sudo lsof -i :80 2>/dev/null || sudo ss -tulpn | grep :80
-    echo -e "\n${YELLOW}Troubleshooting steps:${NC}"
-    echo "1. Check if another service is using port 80: sudo lsof -i :80"
-    echo "2. View Nginx logs: sudo journalctl -u nginx -n 50"
-    echo "3. Check Nginx status: sudo systemctl status nginx"
+    echo "Port 80:"
+    sudo lsof -i :80 2>/dev/null || echo "  No conflicts"
+    echo "Port 3000:"
+    sudo lsof -i :3000 2>/dev/null || echo "  No conflicts"
+    echo "Port 5000:"
+    sudo lsof -i :5000 2>/dev/null || echo "  No conflicts"
+    echo "Port 9090:"
+    sudo lsof -i :9090 2>/dev/null || echo "  No conflicts"
+    echo ""
+    echo "Recent Nginx errors:"
+    sudo journalctl -u nginx -n 20 --no-pager
+    echo ""
+    echo "SELinux denials (if any):"
+    sudo ausearch -m avc -ts recent 2>/dev/null | grep nginx | tail -n 5 || echo "  None found"
+    echo ""
+    echo -e "${YELLOW}Troubleshooting steps:${NC}"
+    echo "1. Run the automated fix script:"
+    echo "   bash fix-nginx-startup.sh"
+    echo ""
+    echo "2. Manual checks:"
+    echo "   - Check port conflicts: sudo lsof -i :80"
+    echo "   - View detailed logs: sudo journalctl -u nginx -n 50"
+    echo "   - Check Nginx status: sudo systemctl status nginx"
+    echo "   - Test configuration: sudo nginx -t"
+    echo ""
+    echo "3. SELinux issues:"
+    echo "   - Check status: getenforce"
+    echo "   - Allow network: sudo setsebool -P httpd_can_network_connect 1"
+    echo "   - Check denials: sudo ausearch -m avc -ts recent | grep nginx"
     exit 1
 fi
 
