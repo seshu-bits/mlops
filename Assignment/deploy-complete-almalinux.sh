@@ -414,6 +414,25 @@ if ! command -v nginx &> /dev/null; then
     sudo dnf install -y nginx
 fi
 
+# Stop any conflicting web servers
+echo "Checking for port conflicts..."
+if sudo systemctl is-active --quiet httpd; then
+    echo "Stopping Apache (httpd) to free port 80..."
+    sudo systemctl stop httpd
+    sudo systemctl disable httpd
+fi
+
+# Stop any existing nginx processes
+if pgrep nginx > /dev/null; then
+    echo "Stopping existing Nginx processes..."
+    sudo systemctl stop nginx 2>/dev/null || true
+    sudo pkill nginx 2>/dev/null || true
+    sleep 2
+fi
+
+# Clean up stale PID files
+sudo rm -f /run/nginx.pid /var/run/nginx.pid 2>/dev/null || true
+
 # Backup and fix nginx.conf if it exists
 echo "Configuring Nginx..."
 if [ -f /etc/nginx/nginx.conf ]; then
@@ -514,9 +533,35 @@ server {
 EOF
 
 # Test and restart Nginx
-sudo nginx -t
-sudo systemctl restart nginx
+echo "Testing Nginx configuration..."
+if ! sudo nginx -t; then
+    echo -e "${RED}✗ Nginx configuration test failed${NC}"
+    echo "Please check the configuration and try again"
+    exit 1
+fi
+
+echo "Restarting Nginx..."
+if ! sudo systemctl restart nginx; then
+    echo -e "${RED}✗ Nginx failed to start${NC}"
+    echo "Checking for port conflicts..."
+    sudo lsof -i :80 2>/dev/null || sudo ss -tulpn | grep :80
+    echo -e "\n${YELLOW}Troubleshooting steps:${NC}"
+    echo "1. Check if another service is using port 80: sudo lsof -i :80"
+    echo "2. View Nginx logs: sudo journalctl -u nginx -n 50"
+    echo "3. Check Nginx status: sudo systemctl status nginx"
+    exit 1
+fi
+
 sudo systemctl enable nginx
+
+# Verify Nginx is running
+if sudo systemctl is-active --quiet nginx; then
+    echo -e "${GREEN}✓ Nginx is running successfully${NC}"
+else
+    echo -e "${RED}✗ Nginx is not running${NC}"
+    sudo systemctl status nginx
+    exit 1
+fi
 
 # Configure firewall
 echo "Configuring firewall..."
