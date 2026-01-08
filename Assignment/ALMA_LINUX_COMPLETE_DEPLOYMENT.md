@@ -545,7 +545,11 @@ sudo firewall-cmd --list-all
 # Install Nginx
 sudo dnf install -y nginx
 
-# Create Nginx configuration
+# IMPORTANT: Remove default server block from nginx.conf to avoid conflicts
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
+sudo sed -i '/^[[:space:]]*server[[:space:]]*{/,/^[[:space:]]*}/d' /etc/nginx/nginx.conf
+
+# Create Nginx configuration in conf.d
 sudo tee /etc/nginx/conf.d/mlops-proxy.conf > /dev/null << 'EOF'
 # Get Minikube IP first: minikube ip
 # Replace MINIKUBE_IP below with actual IP

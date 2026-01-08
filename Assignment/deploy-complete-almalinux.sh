@@ -414,7 +414,48 @@ if ! command -v nginx &> /dev/null; then
     sudo dnf install -y nginx
 fi
 
-# Create Nginx config
+# Remove default server block from nginx.conf if it exists
+echo "Removing default server block from nginx.conf..."
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup 2>/dev/null || true
+
+# Remove any existing default server block in the http section
+sudo sed -i '/^[[:space:]]*server[[:space:]]*{/,/^[[:space:]]*}/d' /etc/nginx/nginx.conf
+
+# Ensure the http block exists and is properly closed
+if ! grep -q "^http {" /etc/nginx/nginx.conf; then
+    echo "Warning: http block not found in nginx.conf. Creating minimal config..."
+    sudo tee /etc/nginx/nginx.conf > /dev/null << 'NGINXCONF'
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile            on;
+    tcp_nopush          on;
+    tcp_nodelay         on;
+    keepalive_timeout   65;
+    types_hash_max_size 4096;
+
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+NGINXCONF
+fi
+
+# Create Nginx config in conf.d
 sudo tee /etc/nginx/conf.d/mlops-proxy.conf > /dev/null << EOF
 upstream api_backend {
     server $MINIKUBE_IP:80;
