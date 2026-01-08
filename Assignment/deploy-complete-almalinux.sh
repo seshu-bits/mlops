@@ -433,6 +433,25 @@ fi
 # Clean up stale PID files
 sudo rm -f /run/nginx.pid /var/run/nginx.pid 2>/dev/null || true
 
+# Configure SELinux to allow Nginx to bind to non-standard ports
+echo "Configuring SELinux for Nginx..."
+if command -v getenforce &> /dev/null && [ "$(getenforce)" != "Disabled" ]; then
+    # Install policycoreutils-python-utils if not available
+    if ! command -v semanage &> /dev/null; then
+        echo "Installing SELinux management tools..."
+        sudo dnf install -y policycoreutils-python-utils
+    fi
+    
+    # Allow Nginx to bind to ports 3000, 5000, 9090
+    echo "Adding SELinux permissions for ports 3000, 5000, 9090..."
+    sudo semanage port -a -t http_port_t -p tcp 9090 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 9090
+    sudo semanage port -a -t http_port_t -p tcp 3000 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 3000
+    sudo semanage port -a -t http_port_t -p tcp 5000 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 5000
+    echo -e "${GREEN}✓ SELinux configured for Nginx${NC}"
+else
+    echo "SELinux is disabled, skipping SELinux configuration"
+fi
+
 # Backup and fix nginx.conf if it exists
 echo "Configuring Nginx..."
 if [ -f /etc/nginx/nginx.conf ]; then

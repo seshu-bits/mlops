@@ -660,6 +660,19 @@ EOF
 MINIKUBE_IP=$(minikube ip)
 sudo sed -i "s/MINIKUBE_IP/$MINIKUBE_IP/g" /etc/nginx/conf.d/mlops-proxy.conf
 
+# IMPORTANT: Configure SELinux to allow Nginx to bind to non-standard ports
+if command -v getenforce &> /dev/null && [ "$(getenforce)" != "Disabled" ]; then
+    # Install SELinux management tools if needed
+    if ! command -v semanage &> /dev/null; then
+        sudo dnf install -y policycoreutils-python-utils
+    fi
+    
+    # Allow Nginx to bind to ports 3000, 5000, 9090
+    sudo semanage port -a -t http_port_t -p tcp 9090 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 9090
+    sudo semanage port -a -t http_port_t -p tcp 3000 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 3000
+    sudo semanage port -a -t http_port_t -p tcp 5000 2>/dev/null || sudo semanage port -m -t http_port_t -p tcp 5000
+fi
+
 # Test Nginx configuration
 sudo nginx -t
 
