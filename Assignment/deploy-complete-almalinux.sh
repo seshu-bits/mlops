@@ -414,21 +414,19 @@ if ! command -v nginx &> /dev/null; then
     sudo dnf install -y nginx
 fi
 
-# Remove default server block from nginx.conf if it exists
-echo "Removing default server block from nginx.conf..."
-sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup 2>/dev/null || true
-
-# Remove any existing default server block in the http section
-sudo sed -i '/^[[:space:]]*server[[:space:]]*{/,/^[[:space:]]*}/d' /etc/nginx/nginx.conf
-
-# Ensure the http block exists and is properly closed
-if ! grep -q "^http {" /etc/nginx/nginx.conf; then
-    echo "Warning: http block not found in nginx.conf. Creating minimal config..."
+# Backup and fix nginx.conf if it exists
+echo "Configuring Nginx..."
+if [ -f /etc/nginx/nginx.conf ]; then
+    sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+    
+    # Create a clean nginx.conf without server blocks
     sudo tee /etc/nginx/nginx.conf > /dev/null << 'NGINXCONF'
 user nginx;
 worker_processes auto;
 error_log /var/log/nginx/error.log;
 pid /run/nginx.pid;
+
+include /usr/share/nginx/modules/*.conf;
 
 events {
     worker_connections 1024;
@@ -450,9 +448,11 @@ http {
     include             /etc/nginx/mime.types;
     default_type        application/octet-stream;
 
+    # Load modular configuration files from the /etc/nginx/conf.d directory.
     include /etc/nginx/conf.d/*.conf;
 }
 NGINXCONF
+    echo "Created clean nginx.conf"
 fi
 
 # Create Nginx config in conf.d
